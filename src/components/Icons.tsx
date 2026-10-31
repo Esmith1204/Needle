@@ -21,6 +21,42 @@ function Icon({ size = 18, children, ...props }: IconProps) {
   );
 }
 
+export const HomeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m3.5 11 8.5-7.5 8.5 7.5" />
+    <path d="M5.5 9.5V20h4.5v-5.5h4V20h4.5V9.5" />
+  </Icon>
+);
+
+export const CompassIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" />
+  </Icon>
+);
+
+export const UserIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4.5 20.5c1-3.8 4-5.5 7.5-5.5s6.5 1.7 7.5 5.5" />
+  </Icon>
+);
+
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20.5 20.5-4.5-4.5" />
+  </Icon>
+);
+
+export const LogOutIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+    <path d="M10 12h10" />
+    <path d="m16 8 4 4-4 4" />
+  </Icon>
+);
+
 export const CommentIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z" />
@@ -53,13 +89,6 @@ export const MoreIcon = (p: IconProps) => (
     <circle cx="5" cy="12" r="1.9" />
     <circle cx="12" cy="12" r="1.9" />
     <circle cx="19" cy="12" r="1.9" />
-  </Icon>
-);
-
-export const ArrowRightIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M5 12h14" />
-    <path d="m13 6 6 6-6 6" />
   </Icon>
 );
 

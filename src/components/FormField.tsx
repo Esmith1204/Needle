@@ -16,12 +16,12 @@ export function Field({ label, htmlFor, error, hint, className = "", children }:
   const message = error ?? hint;
   return (
     <div className={className}>
-      <label htmlFor={htmlFor} className="mb-2.5 block text-xs font-semibold tracking-wide">
+      <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-bold">
         {label}
       </label>
       {children(message ? messageId : undefined)}
       {message && (
-        <p id={messageId} className={`mt-2 text-xs ${error ? "text-danger" : "text-muted"}`}>
+        <p id={messageId} className={`mt-1.5 text-xs ${error ? "text-danger" : "text-muted"}`}>
           {message}
         </p>
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   answerComparison,
   comparisonPool,
@@ -11,6 +11,7 @@ import {
   type Sentiment,
 } from "../lib/compareRank";
 import { formatRating } from "../lib/format";
+import { gsap, reducedMotion, useGSAP } from "../lib/motion";
 import type { Album, Post } from "../types";
 import { AlbumCover } from "./AlbumCover";
 
@@ -29,6 +30,25 @@ type State =
 /** Beli-style rating: pick a feeling, then answer "which did you like more?" until the score is found. */
 export function ComparisonRater({ album, pastRatings, onScore }: ComparisonRaterProps) {
   const [state, setState] = useState<State>({ step: "sentiment" });
+  const scoreText = useRef<HTMLSpanElement>(null);
+  const finalScore = state.step === "done" ? state.score : null;
+
+  // The score counts up to its final value: the payoff for answering the questions.
+  useGSAP(
+    () => {
+      if (finalScore === null || reducedMotion()) return;
+      const counter = { value: Math.max(0, finalScore - 2) };
+      gsap.to(counter, {
+        value: finalScore,
+        duration: 0.7,
+        ease: "power2.out",
+        onUpdate: () => {
+          if (scoreText.current) scoreText.current.textContent = formatRating(counter.value);
+        },
+      });
+    },
+    { dependencies: [finalScore] },
+  );
 
   const finish = (sentiment: Sentiment, pool: Post[], index: number, tiedWith: Post | null = null) => {
     const score = tiedWith ? tiedWith.rating : scoreAtPosition(pool, index, sentiment);
@@ -58,16 +78,16 @@ export function ComparisonRater({ album, pastRatings, onScore }: ComparisonRater
   if (state.step === "sentiment") {
     return (
       <div>
-        <p className="text-sm">How did you feel about <span className="font-medium">{album.title}</span>?</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <p className="text-sm">How did you feel about <span className="font-bold">{album.title}</span>?</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
           {(Object.keys(SENTIMENTS) as Sentiment[]).map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => chooseSentiment(key)}
-              className="border border-line bg-card px-3 py-3 text-left transition-colors hover:border-ink"
+              className="rounded-xl border border-line bg-card px-3 py-2 text-left transition-colors hover:border-accent"
             >
-              <span className="block text-sm font-medium">{SENTIMENTS[key].label}</span>
+              <span className="block text-sm font-bold">{SENTIMENTS[key].label}</span>
               <span className="block text-xs text-muted tabular-nums">
                 {formatRating(SENTIMENTS[key].min)}–{formatRating(SENTIMENTS[key].max)}
               </span>
@@ -83,20 +103,20 @@ export function ComparisonRater({ album, pastRatings, onScore }: ComparisonRater
     return (
       <div>
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-medium">Which did you like more?</p>
+          <p className="text-sm font-bold">Which did you like more?</p>
           <p className="text-xs text-muted tabular-nums">
             Question {state.asked + 1} of up to {maxComparisons(state.pool.length)}
           </p>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:max-w-sm">
           <ChoiceCard album={album} label="New" onClick={() => answer(true)} />
           <ChoiceCard album={other.album} label="Rated before" onClick={() => answer(false)} />
         </div>
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-2 flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={() => finish(state.sentiment, state.pool, nextComparison(state.range)!, other)}
-            className="font-medium text-muted underline underline-offset-4 hover:text-ink"
+            className="font-semibold text-muted underline underline-offset-4 hover:text-ink"
           >
             Too close to call
           </button>
@@ -111,13 +131,14 @@ export function ComparisonRater({ album, pastRatings, onScore }: ComparisonRater
   const above = state.index > 0 ? state.pool[state.index - 1] : null;
   const below = state.index < state.pool.length ? state.pool[state.index] : null;
   return (
-    <div className="border border-ink bg-card p-4" aria-live="polite">
-      <p className="eyebrow text-muted">Your score</p>
-      <p className="mt-1 text-5xl leading-none tracking-tighter tabular-nums">
-        {formatRating(state.score)}
-        <span className="ml-1 text-sm tracking-normal text-muted">/ 10</span>
+    <div className="rounded-xl border border-rule bg-card p-3" aria-live="polite">
+      <p className="text-xs font-bold text-muted">Your score</p>
+      <p className="mt-1 text-4xl font-extrabold leading-none tabular-nums">
+        <span className="sr-only">{formatRating(state.score)}</span>
+        <span ref={scoreText} aria-hidden="true">{formatRating(state.score)}</span>
+        <span className="ml-1 text-sm font-semibold text-muted">/ 10</span>
       </p>
-      <p className="mt-3 text-xs leading-relaxed text-muted">
+      <p className="mt-2 text-xs leading-relaxed text-muted">
         {state.tiedWith ? (
           <>Same score as <Ref post={state.tiedWith} />.</>
         ) : state.pool.length === 0 ? (
@@ -130,7 +151,7 @@ export function ComparisonRater({ album, pastRatings, onScore }: ComparisonRater
           <>Ranked below <Ref post={above!} /> in this range.</>
         )}
       </p>
-      <button type="button" onClick={restart} className="mt-3 text-xs font-medium underline underline-offset-4">
+      <button type="button" onClick={restart} className="mt-2 text-xs font-semibold underline underline-offset-4">
         Start over
       </button>
     </div>
@@ -142,11 +163,11 @@ function ChoiceCard({ album, label, onClick }: { album: Album; label: string; on
     <button
       type="button"
       onClick={onClick}
-      className="group border border-line bg-card p-2 text-left transition-colors hover:border-ink focus-visible:border-ink"
+      className="group rounded-xl border border-line bg-card p-2 text-left transition-colors hover:border-accent focus-visible:border-accent"
     >
-      <AlbumCover src={album.coverUrl} title={album.title} className="border border-line" />
-      <span className="mt-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{label}</span>
-      <span className="block truncate text-sm font-medium group-hover:underline">{album.title}</span>
+      <AlbumCover src={album.coverUrl} title={album.title} className="rounded-lg" />
+      <span className="mt-1.5 block text-xs font-semibold text-muted">{label}</span>
+      <span className="block truncate text-sm font-bold group-hover:underline">{album.title}</span>
       {album.artist && <span className="block truncate text-xs text-muted">{album.artist}</span>}
     </button>
   );

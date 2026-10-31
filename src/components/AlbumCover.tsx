@@ -31,9 +31,9 @@ export function AlbumCover({ src, title, className = "" }: AlbumCoverProps) {
 function VinylPlaceholder({ title }: { title: string }) {
   return (
     <svg viewBox="0 0 100 100" role="img" aria-label={`No cover for ${title}`} className="absolute inset-0 h-full w-full">
-      <circle cx="50" cy="50" r="35" fill="none" stroke="#8f8c86" strokeWidth="0.5" />
-      <circle cx="50" cy="50" r="25" fill="none" stroke="#a6a39d" strokeWidth="0.4" />
-      <circle cx="50" cy="50" r="7" fill="#7a7873" />
+      <circle cx="50" cy="50" r="35" fill="none" stroke="#6d7294" strokeWidth="0.5" />
+      <circle cx="50" cy="50" r="25" fill="none" stroke="#585d7c" strokeWidth="0.4" />
+      <circle cx="50" cy="50" r="7" fill="#6d7294" />
     </svg>
   );
 }

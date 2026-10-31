@@ -1,34 +1,34 @@
-import { useId } from "react";
+import { useRef } from "react";
+import { gsap, reducedMotion, useGSAP } from "../lib/motion";
 
-/** The concentric "record" from the mockup; a cover, when given, becomes the spinning label. */
-export function RecordRings({ coverUrl = null, className = "" }: { coverUrl?: string | null; className?: string }) {
-  const clipId = useId();
+/** A record and tonearm for the sign-in pages; the rings settle in and the needle swings onto the record. */
+export function RecordRings({ className = "" }: { className?: string }) {
+  const root = useRef<SVGSVGElement>(null);
+
+  useGSAP(
+    () => {
+      if (reducedMotion()) return;
+      gsap
+        .timeline({ defaults: { ease: "power2.out" } })
+        .from("[data-ring]", { autoAlpha: 0, scale: 0.9, transformOrigin: "50% 50%", duration: 0.5, stagger: 0.08 })
+        .from("[data-tonearm]", { rotation: -32, svgOrigin: "570 30", duration: 0.9, ease: "power2.inOut" }, 0.15);
+    },
+    { scope: root },
+  );
+
   return (
-    <svg viewBox="0 0 600 600" aria-hidden="true" className={className}>
-      <g fill="none" stroke="var(--color-line)" strokeWidth="1.2">
-        <circle cx="300" cy="300" r="292" />
-        <circle cx="300" cy="300" r="228" />
-        <circle cx="300" cy="300" r="142" />
+    <svg ref={root} viewBox="0 0 600 600" aria-hidden="true" className={className}>
+      <g fill="none" stroke="#fff" strokeOpacity="0.28" strokeWidth="1.2">
+        <circle data-ring cx="300" cy="300" r="292" />
+        <circle data-ring cx="300" cy="300" r="228" />
+        <circle data-ring cx="300" cy="300" r="142" />
+        <circle data-ring cx="300" cy="300" r="38" />
       </g>
-      {coverUrl ? (
-        <g className="origin-center motion-safe:animate-[spin_14s_linear_infinite]" style={{ transformBox: "fill-box" }}>
-          <clipPath id={clipId}>
-            <circle cx="300" cy="300" r="140" />
-          </clipPath>
-          <image
-            href={coverUrl}
-            x="160"
-            y="160"
-            width="280"
-            height="280"
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#${clipId})`}
-          />
-          <circle cx="300" cy="300" r="9" fill="var(--color-paper)" stroke="var(--color-rule)" />
-        </g>
-      ) : (
-        <circle cx="300" cy="300" r="38" fill="none" stroke="var(--color-rule)" strokeWidth="1.2" />
-      )}
+      <g data-tonearm fill="none" stroke="#fff" strokeOpacity="0.85" strokeLinecap="round">
+        <circle cx="570" cy="30" r="10" strokeWidth="2.5" />
+        <path d="M570 30 480 210" strokeWidth="3.5" />
+        <path d="m480 210-5 22" strokeWidth="7" />
+      </g>
     </svg>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { useSession } from "../context/SessionContext";
 import { missingSupabaseEnv } from "../lib/supabase";
+import { Wordmark } from "./Wordmark";
 
 /** Signed-in routes: everyone else is sent to /login (and back here afterwards). */
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -39,7 +40,7 @@ export function RequireNoProfile({ children }: { children: ReactNode }) {
 function Splash() {
   return (
     <div className="grid min-h-dvh place-items-center" aria-busy="true" aria-label="Loading">
-      <p className="font-serif text-2xl text-muted">Music Rater</p>
+      <Wordmark className="text-2xl text-muted" />
     </div>
   );
 }
@@ -48,7 +49,7 @@ function NotConfigured() {
   return (
     <div className="mx-auto grid min-h-dvh max-w-xl place-items-center px-6 text-center">
       <div>
-        <p className="font-serif text-3xl">Supabase isn't connected.</p>
+        <p className="text-2xl font-extrabold">Supabase isn't connected.</p>
         <p className="mt-3 text-sm leading-relaxed text-muted">
           This build is missing <code className="text-ink">{missingSupabaseEnv.join(" and ")}</code>. Add it to{" "}
           <code className="text-ink">.env.local</code> and restart <code className="text-ink">npm run dev</code>, or

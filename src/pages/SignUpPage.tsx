@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field } from "../components/FormField";
 import { HandleInput, ProfileNameInput } from "../components/ProfileFields";
-import { ArrowRightIcon } from "../components/Icons";
 import { useHandleCheck } from "../hooks/useHandleCheck";
 import { signUp } from "../lib/api";
 
@@ -63,18 +62,13 @@ export function SignUpPage() {
   if (confirmEmailFor) {
     return (
       <AuthLayout title={title} subtitle={subtitle}>
-        <p className="eyebrow">Almost there</p>
-        <h2 className="mt-3 font-serif text-[2.4rem] leading-tight tracking-tight">Check your email</h2>
-        <p className="mt-6 text-sm leading-relaxed text-muted">
-          We sent a confirmation link to <span className="font-medium text-ink">{confirmEmailFor}</span>. Open it to
+        <h2 className="text-2xl font-extrabold leading-tight">Check your email</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          We sent a confirmation link to <span className="font-bold text-ink">{confirmEmailFor}</span>. Open it to
           activate your account, then sign in.
         </p>
-        <Link
-          to="/login"
-          className="eyebrow mt-8 flex h-[58px] w-full items-center justify-between bg-ink px-5 text-paper"
-        >
+        <Link to="/login" className="btn btn-primary mt-6 h-10 w-full">
           Go to sign in
-          <ArrowRightIcon size={16} />
         </Link>
       </AuthLayout>
     );
@@ -83,13 +77,13 @@ export function SignUpPage() {
   return (
     <AuthLayout title={title} subtitle={subtitle}>
       <form noValidate onSubmit={onSubmit}>
-        <p className="eyebrow">Create an account</p>
-        <h2 className="mt-3 font-serif text-[2.4rem] leading-tight tracking-tight">Join Music Rater</h2>
+        <h2 className="text-2xl font-extrabold leading-tight">Join Needle</h2>
+        <p className="mt-1 text-sm text-muted">Create an account.</p>
 
-        <ProfileNameInput value={displayName} onChange={setDisplayName} error={shown("displayName")} className="mt-12" />
-        <HandleInput value={handle} onChange={setHandle} check={handleCheck} error={shown("handle")} className="mt-6" />
+        <ProfileNameInput value={displayName} onChange={setDisplayName} error={shown("displayName")} className="mt-6" />
+        <HandleInput value={handle} onChange={setHandle} check={handleCheck} error={shown("handle")} className="mt-4" />
 
-        <Field label="Email" htmlFor="email" error={shown("email")} className="mt-6">
+        <Field label="Email" htmlFor="email" error={shown("email")} className="mt-4">
           {(describedBy) => (
             <input
               id="email"
@@ -108,7 +102,7 @@ export function SignUpPage() {
           htmlFor="password"
           error={shown("password")}
           hint={`At least ${MIN_PASSWORD} characters.`}
-          className="mt-6"
+          className="mt-4"
         >
           {(describedBy) => (
             <input
@@ -125,22 +119,17 @@ export function SignUpPage() {
         </Field>
 
         {error && (
-          <p role="alert" className="mt-6 border border-danger/40 bg-card px-4 py-3 text-xs text-danger">
+          <p role="alert" className="mt-4 rounded-xl border border-danger/40 bg-card px-4 py-2.5 text-xs text-danger">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="eyebrow mt-8 flex h-[58px] w-full items-center justify-between bg-ink px-5 text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} className="btn btn-primary mt-6 h-10 w-full">
           {submitting ? "Creating account…" : "Create account"}
-          <ArrowRightIcon size={16} />
         </button>
-        <p className="mt-6 text-center text-sm text-muted">
+        <p className="mt-4 text-center text-sm text-muted">
           Already have an account?{" "}
-          <Link to="/login" state={location.state} className="font-medium text-ink underline underline-offset-4">
+          <Link to="/login" state={location.state} className="font-bold text-accent hover:underline">
             Sign in
           </Link>
         </p>

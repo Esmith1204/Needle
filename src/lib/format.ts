@@ -27,10 +27,6 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function firstName(displayName: string): string {
-  return displayName.trim().split(/\s+/)[0] ?? displayName;
-}
-
 /** Downscale an uploaded image to a square JPEG data URL suitable for a cover. */
 export function fileToCoverDataUrl(file: File, size = 600): Promise<string> {
   return new Promise((resolve, reject) => {

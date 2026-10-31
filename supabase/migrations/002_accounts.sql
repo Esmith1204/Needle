@@ -1,4 +1,4 @@
--- Music Rater migration 002: accounts, profiles, friends, and rating ownership.
+-- Needle migration 002: accounts, profiles, friends, and rating ownership.
 -- Run once in Supabase → SQL Editor, AFTER 001_ratings.sql.
 --
 -- ⚠ This deletes every existing row in `ratings`. They were all saved under the

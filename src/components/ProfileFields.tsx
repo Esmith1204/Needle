@@ -53,7 +53,7 @@ export function HandleInput({
     <Field label="Handle" htmlFor="handle" error={error ?? liveError} hint={hint} className={className}>
       {(describedBy) => (
         <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[15px] text-muted">@</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted">@</span>
           <input
             id="handle"
             type="text"
@@ -66,7 +66,7 @@ export function HandleInput({
             onChange={(e) => onChange(e.target.value.toLowerCase().replace(/\s+/g, ""))}
             aria-invalid={Boolean(error ?? liveError) || undefined}
             aria-describedby={describedBy}
-            className="field pl-8"
+            className="field pl-7"
           />
         </div>
       )}

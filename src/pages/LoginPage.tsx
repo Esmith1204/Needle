@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field } from "../components/FormField";
-import { ArrowRightIcon } from "../components/Icons";
 import { signIn } from "../lib/api";
 
 export function LoginPage() {
@@ -41,10 +40,10 @@ export function LoginPage() {
       subtitle="Log albums on a 10-point scale, rank them against each other, and see what your friends are spinning."
     >
       <form noValidate onSubmit={onSubmit}>
-        <p className="eyebrow">Welcome back</p>
-        <h2 className="mt-3 font-serif text-[2.4rem] leading-tight tracking-tight">Sign in</h2>
+        <h2 className="text-2xl font-extrabold leading-tight">Sign in</h2>
+        <p className="mt-1 text-sm text-muted">Welcome back.</p>
 
-        <Field label="Email" htmlFor="email" className="mt-12">
+        <Field label="Email" htmlFor="email" className="mt-6">
           {(describedBy) => (
             <input
               id="email"
@@ -57,7 +56,7 @@ export function LoginPage() {
             />
           )}
         </Field>
-        <Field label="Password" htmlFor="password" className="mt-6">
+        <Field label="Password" htmlFor="password" className="mt-4">
           {(describedBy) => (
             <input
               id="password"
@@ -72,22 +71,17 @@ export function LoginPage() {
         </Field>
 
         {error && (
-          <p role="alert" className="mt-6 border border-danger/40 bg-card px-4 py-3 text-xs text-danger">
+          <p role="alert" className="mt-4 rounded-xl border border-danger/40 bg-card px-4 py-2.5 text-xs text-danger">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="eyebrow mt-8 flex h-[58px] w-full items-center justify-between bg-ink px-5 text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} className="btn btn-primary mt-6 h-10 w-full">
           {submitting ? "Signing in…" : "Sign in"}
-          <ArrowRightIcon size={16} />
         </button>
-        <p className="mt-6 text-center text-sm text-muted">
+        <p className="mt-4 text-center text-sm text-muted">
           New here?{" "}
-          <Link to="/signup" state={location.state} className="font-medium text-ink underline underline-offset-4">
+          <Link to="/signup" state={location.state} className="font-bold text-accent hover:underline">
             Create an account
           </Link>
         </p>

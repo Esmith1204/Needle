@@ -1,7 +1,14 @@
 import type { Profile } from "../types";
 
-// Muted tones that sit on the paper background; picked deterministically per user.
-const TONES = ["#d8cfc0", "#c9d3cc", "#d6c8c8", "#cbcdd8", "#d9d3bd", "#c4d0d6"];
+// Gradients around the brand colors, dark enough for white initials; picked deterministically per user.
+const TONES = [
+  "linear-gradient(135deg, #573a9b, #2755a1)",
+  "linear-gradient(135deg, #2755a1, #1f6f8b)",
+  "linear-gradient(135deg, #7a3a9b, #573a9b)",
+  "linear-gradient(135deg, #3a4a9b, #573a9b)",
+  "linear-gradient(135deg, #1f6f8b, #2755a1)",
+  "linear-gradient(135deg, #6b3a8f, #2755a1)",
+];
 
 function toneFor(id: string) {
   let hash = 0;
@@ -35,8 +42,8 @@ export function Avatar({ profile, size = 40, className = "" }: AvatarProps) {
   return (
     <span
       aria-hidden="true"
-      style={{ ...style, backgroundColor: toneFor(profile.id), fontSize: size * 0.38 }}
-      className={`grid shrink-0 place-items-center rounded-full border border-line font-serif text-ink ${className}`}
+      style={{ ...style, backgroundImage: toneFor(profile.id), fontSize: size * 0.38 }}
+      className={`grid shrink-0 place-items-center rounded-full font-bold text-white ${className}`}
     >
       {initials(profile.displayName)}
     </span>

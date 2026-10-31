@@ -1,4 +1,4 @@
--- Music Rater migration 001: the `ratings` table (prototype, before accounts existed).
+-- Needle migration 001: the `ratings` table (prototype, before accounts existed).
 -- Run once in Supabase → SQL Editor, then run 002_accounts.sql, which ties ratings to
 -- real accounts and replaces this file's open access rules.
 

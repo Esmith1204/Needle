@@ -1,8 +1,8 @@
-# Music Rater
+# Needle
 
 A social music rating app: rate albums on a 10-point decimal scale, or rank them by comparison against your past ratings; write short reviews; and follow friends' ratings.
 
-Built with Vite, React, TypeScript, Tailwind CSS v4, React Router, and Supabase (Auth, Postgres, Realtime).
+Built with Vite, React, TypeScript, Tailwind CSS v4, React Router, GSAP, and Supabase (Auth, Postgres, Realtime).
 
 ## Run it
 
@@ -23,8 +23,8 @@ The app needs a Supabase project. See [Supabase setup](#supabase-setup).
 | `/welcome`    | Pick a name and handle (only for accounts created without one)                       |
 | `/`           | Timeline: Everyone / Friends feeds, updates live                                     |
 | `/rate`       | Rate an album: **Score it** (0.0–10.0) or **Compare** (unlocks at 10 ratings)        |
-| `/people`     | Find people by name or handle and add them as friends                                |
-| `/u/:handle`  | Profile: live rating/follower/following counts, friends, ratings grid/list, histogram |
+| `/discover`   | Search people, add friends, and see popular albums (also the right column on wide screens) |
+| `/u/:handle`  | Profile: live counts, histogram, and Ratings / Reviews / Friends tabs                |
 | `/profile`    | Redirects to your own profile                                                        |
 
 ## Rate by comparison
@@ -35,13 +35,14 @@ Inspired by Beli: once you have 10 ratings, **Compare** asks whether you loved t
 
 ```
 src/
-  components/   PostCard, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, Layout, …
-  pages/        Login, SignUp, Welcome, Timeline, CreateRating, People, Profile
+  components/   Layout, DiscoverPanel, PostCard, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
+  pages/        Login, SignUp, Welcome, Timeline, CreateRating, Discover, Profile
   context/      SessionContext: Supabase auth session + the signed-in user's profile
-  hooks/        useAsync, useRealtimeRefresh (Supabase Realtime), useHandleCheck
+  hooks/        useAsync, useRealtimeRefresh (Supabase Realtime), useHandleCheck, useEnterList
   lib/
     api.ts          All Supabase reads/writes (auth, profiles, friends, ratings)
     compareRank.ts  Rate-by-comparison logic
+    motion.ts       GSAP helpers; every animation respects prefers-reduced-motion
     supabase.ts     Typed Supabase client
     itunes.ts       Album + cover search via the iTunes Search API
     format.ts       Rating/handle validation, formatting, image resizing

@@ -1,7 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Vinyl placeholder from AlbumCover.tsx, with strokes thickened to read at 16px. -->
-  <rect width="32" height="32" rx="4" fill="#dedcd7"/>
-  <circle cx="16" cy="16" r="12" fill="none" stroke="#8f8c86" stroke-width="1.6"/>
-  <circle cx="16" cy="16" r="8" fill="none" stroke="#a6a39d" stroke-width="1.2"/>
-  <circle cx="16" cy="16" r="3" fill="#7a7873"/>
+  <!-- A record and tonearm on the brand gradient, with strokes thick enough to read at 16px. -->
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#573a9b"/>
+      <stop offset="1" stop-color="#2755a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#brand)"/>
+  <circle cx="14.5" cy="17.5" r="9.5" fill="none" stroke="#fff" stroke-opacity="0.75" stroke-width="1.6"/>
+  <circle cx="14.5" cy="17.5" r="2.5" fill="#fff"/>
+  <path d="M27 5 20 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
 </svg>

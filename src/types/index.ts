@@ -50,3 +50,9 @@ export interface NewPostInput {
 }
 
 export type FeedScope = "everyone" | "friends";
+
+export interface TopAlbum {
+  album: Album;
+  averageRating: number;
+  ratingCount: number;
+}

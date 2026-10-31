@@ -7,6 +7,7 @@ import type {
   Profile,
   ProfileWithStats,
   Post,
+  TopAlbum,
 } from "../types";
 import { missingSupabaseEnv, supabase } from "./supabase";
 
@@ -238,6 +239,33 @@ export async function listTimeline(scope: FeedScope, viewerId: string): Promise<
   const { data, error } = await request;
   if (error) fail(error);
   return data.flatMap((row) => toPostWithAuthor(row) ?? []);
+}
+
+/** The most-rated albums among recent ratings; ties go to the higher average. */
+export async function listTopAlbums(limit: number): Promise<TopAlbum[]> {
+  const { data, error } = await db()
+    .from("ratings")
+    .select("album_title, album_artist, album_year, cover_url, rating")
+    .order("created_at", { ascending: false })
+    .limit(TIMELINE_LIMIT);
+  if (error) fail(error);
+
+  const albums = new Map<string, { album: TopAlbum["album"]; total: number; count: number }>();
+  for (const row of data) {
+    const key = `${row.album_title}|${row.album_artist ?? ""}`.toLowerCase();
+    const entry = albums.get(key) ?? {
+      album: { title: row.album_title, artist: row.album_artist, year: row.album_year, coverUrl: row.cover_url },
+      total: 0,
+      count: 0,
+    };
+    entry.total += Number(row.rating);
+    entry.count += 1;
+    albums.set(key, entry);
+  }
+  return [...albums.values()]
+    .map(({ album, total, count }) => ({ album, averageRating: total / count, ratingCount: count }))
+    .sort((a, b) => b.ratingCount - a.ratingCount || b.averageRating - a.averageRating)
+    .slice(0, limit);
 }
 
 export async function listRatingsByUser(userId: string): Promise<PostWithAuthor[]> {

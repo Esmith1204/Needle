@@ -107,7 +107,7 @@ export function AlbumSearchField({
           // Keep focus in the input while pressing a result, so the list doesn't
           // close (on blur) before the click that selects the album lands.
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-y-auto border border-line bg-card shadow-[0_12px_32px_-12px_rgb(0_0_0/0.25)]"
+          className="absolute inset-x-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-xl border border-rule bg-card shadow-[0_12px_32px_-12px_rgb(0_0_0/0.7)]"
         >
           {status === "loading" && results.length === 0 && (
             <li className="px-4 py-3 text-sm text-muted">Searching…</li>
@@ -128,9 +128,9 @@ export function AlbumSearchField({
               onClick={() => choose(album)}
               className={`flex cursor-pointer items-center gap-3 px-3 py-2 ${i === active ? "bg-field" : ""}`}
             >
-              <img src={album.coverUrl} alt="" className="size-11 shrink-0 border border-line object-cover" />
+              <img src={album.coverUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{album.title}</span>
+                <span className="block truncate text-sm font-bold">{album.title}</span>
                 <span className="block truncate text-xs text-muted">
                   {album.artist}
                   {album.year ? ` · ${album.year}` : ""}

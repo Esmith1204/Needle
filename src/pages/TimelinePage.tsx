@@ -1,91 +1,94 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { PostCard } from "../components/PostCard";
+import { Tabs } from "../components/Tabs";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
+import { useEnterList } from "../hooks/useEnterList";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
 import { listTimeline } from "../lib/api";
-import type { FeedScope } from "../types";
+import { enter, useGSAP } from "../lib/motion";
+import type { FeedScope, PostWithAuthor } from "../types";
 
 const SCOPES: { value: FeedScope; label: string }[] = [
   { value: "everyone", label: "Everyone" },
   { value: "friends", label: "Friends" },
 ];
 
+async function loadFeed(scope: FeedScope, viewerId: string) {
+  return { scope, posts: await listTimeline(scope, viewerId) };
+}
+
 export function TimelinePage() {
   const viewer = useCurrentUser();
   const [scope, setScope] = useState<FeedScope>("everyone");
-  const { data: posts, loading, error, reload } = useAsync(() => listTimeline(scope, viewer.id), [scope, viewer.id]);
+  const { data, error, reload } = useAsync(() => loadFeed(scope, viewer.id), [scope, viewer.id]);
   useRealtimeRefresh(["ratings", "friendships"], reload);
+  // Ignore the other tab's posts while this one loads.
+  const posts = data?.scope === scope ? data.posts : undefined;
 
   const location = useLocation();
   const navigate = useNavigate();
   const justPosted = (location.state as { justPosted?: string } | null)?.justPosted;
+  const notice = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (justPosted) enter(notice.current, { y: -8, delay: 0.15 });
+    },
+    { dependencies: [justPosted] },
+  );
 
   return (
-    <div className="mx-auto w-full max-w-[56rem] px-4 pb-24 pt-8 sm:pt-20">
+    <div>
+      <h1 className="sr-only">Timeline</h1>
+      <div className="sticky top-0 z-10 bg-paper/80 backdrop-blur-md">
+        <Tabs label="Feed" tabs={SCOPES} value={scope} onChange={setScope} />
+      </div>
+
       {justPosted && (
-        <div role="status" className="mb-4 flex items-center justify-between border border-line bg-card px-4 py-3 text-xs">
+        <div
+          ref={notice}
+          role="status"
+          className="m-3 flex items-center justify-between rounded-xl border border-rule bg-card px-4 py-2.5 text-sm"
+        >
           <span>Your review is live on the timeline.</span>
           <button
             type="button"
             onClick={() => navigate(".", { replace: true, state: null })}
-            className="text-muted hover:text-ink"
+            className="font-semibold text-muted hover:text-ink"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <div role="tablist" aria-label="Feed" className="mb-4 flex border-b border-line">
-        {SCOPES.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={scope === value}
-            onClick={() => setScope(value)}
-            className={`eyebrow -mb-px flex-1 border-b-2 py-3 transition-colors ${
-              scope === value ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {error ? (
-        <div className="border border-line bg-card px-6 py-10 text-center">
-          <p className="font-serif text-xl">The timeline didn't load.</p>
+        <div className="px-6 py-10 text-center">
+          <p className="text-lg font-extrabold">The timeline didn't load.</p>
           <p className="mt-1 text-sm text-muted">{error.message}</p>
-          <button type="button" onClick={reload} className="eyebrow mt-5 bg-ink px-5 py-3 text-paper">
+          <button type="button" onClick={reload} className="btn btn-primary mt-4">
             Try again
           </button>
         </div>
-      ) : loading && !posts ? (
+      ) : !posts ? (
         <FeedSkeleton />
-      ) : posts && posts.length > 0 ? (
-        <ol className="flex flex-col gap-4">
-          {posts.map((post) => (
-            <li key={post.id}>
-              <PostCard post={post} onDeleted={reload} />
-            </li>
-          ))}
-        </ol>
+      ) : posts.length > 0 ? (
+        <FeedList key={scope} posts={posts} onDeleted={reload} />
       ) : (
-        <div className="border border-line bg-card px-6 py-14 text-center">
-          <p className="font-serif text-2xl">Nothing here yet.</p>
-          <p className="mt-2 text-sm text-muted">
+        <div className="px-6 py-12 text-center">
+          <p className="text-lg font-extrabold">Nothing here yet.</p>
+          <p className="mt-1 text-sm text-muted">
             {scope === "friends"
               ? "Add friends to see their ratings here."
               : "Be the first to rate something."}
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link to="/rate" className="eyebrow inline-block bg-ink px-5 py-3 text-paper">
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link to="/rate" className="btn btn-primary">
               Rate an album
             </Link>
             {scope === "friends" && (
-              <Link to="/people" className="eyebrow inline-block border border-ink px-5 py-3">
+              <Link to="/discover" className="btn btn-outline">
                 Find people
               </Link>
             )}
@@ -96,17 +99,34 @@ export function TimelinePage() {
   );
 }
 
+function FeedList({ posts, onDeleted }: { posts: PostWithAuthor[]; onDeleted: () => void }) {
+  const list = useRef<HTMLOListElement>(null);
+  useEnterList(list, posts.map((post) => post.id));
+
+  return (
+    <ol ref={list}>
+      {posts.map((post) => (
+        <li key={post.id} data-enter-id={post.id}>
+          <PostCard post={post} onDeleted={onDeleted} />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function FeedSkeleton() {
   return (
-    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading timeline">
-      {[0, 1].map((i) => (
-        <div key={i} className="animate-pulse border border-line bg-card p-6">
-          <div className="h-4 w-48 bg-field" />
-          <div className="mt-4 grid grid-cols-[5fr_7fr] border border-line">
-            <div className="aspect-square bg-field" />
-            <div />
+    <div aria-busy="true" aria-label="Loading timeline">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="flex animate-pulse gap-3 border-b border-line px-4 py-3">
+          <div className="size-10 shrink-0 rounded-full bg-field" />
+          <div className="min-w-0 flex-1">
+            <div className="h-3.5 w-48 max-w-full rounded-full bg-field" />
+            <div className="mt-2 flex items-center gap-3 rounded-xl border border-line p-2">
+              <div className="size-14 shrink-0 rounded-lg bg-field" />
+              <div className="h-3.5 w-1/2 rounded-full bg-field" />
+            </div>
           </div>
-          <div className="mt-5 h-4 w-2/3 bg-field" />
         </div>
       ))}
     </div>

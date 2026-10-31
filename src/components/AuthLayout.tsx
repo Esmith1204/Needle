@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { enter, useGSAP } from "../lib/motion";
 import { RecordRings } from "./RecordRings";
+import { Wordmark } from "./Wordmark";
 
 interface AuthLayoutProps {
   title: ReactNode;
@@ -7,24 +9,29 @@ interface AuthLayoutProps {
   children: ReactNode;
 }
 
-/** Two-column layout shared by sign in, sign up, and profile setup (mirrors the rate page). */
+/** Two-column layout shared by sign in, sign up, and profile setup. */
 export function AuthLayout({ title, subtitle, children }: AuthLayoutProps) {
+  const root = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => enter("[data-enter]", { y: 12, duration: 0.4, stagger: 0.07 }), { scope: root });
+
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center px-4 sm:h-[88px] sm:px-10">
-          <span className="font-serif text-2xl tracking-tight sm:text-[1.75rem]">Music Rater</span>
+    <div ref={root} className="grid min-h-dvh lg:grid-cols-2">
+      <section className="relative hidden flex-col overflow-hidden bg-brand p-12 text-white lg:flex">
+        <Wordmark className="text-3xl" />
+        <h1 data-enter className="mt-16 text-5xl font-extrabold leading-[1.05] tracking-tight">
+          {title}
+        </h1>
+        <p data-enter className="mt-4 max-w-sm text-base leading-relaxed text-white/85">
+          {subtitle}
+        </p>
+        <RecordRings className="absolute -bottom-48 right-2 w-[30rem]" />
+      </section>
+      <main className="flex flex-col justify-center px-6 py-10">
+        <div data-enter className="mx-auto w-full max-w-sm">
+          <Wordmark className="mb-8 block text-2xl lg:hidden" />
+          {children}
         </div>
-      </header>
-      <main className="grid flex-1 lg:grid-cols-2">
-        <section className="relative overflow-hidden px-6 pb-10 pt-12 sm:px-12 lg:px-24 lg:pb-0 lg:pt-28">
-          <h1 className="font-serif text-[clamp(3rem,5.6vw,5.4rem)] leading-[0.9] tracking-[-0.04em]">{title}</h1>
-          <p className="mt-8 max-w-[24rem] font-serif text-xl leading-relaxed text-muted lg:mt-12">{subtitle}</p>
-          <RecordRings className="-mb-40 mt-2 hidden w-[min(36rem,100%)] lg:block" />
-        </section>
-        <section className="border-t border-rule px-6 py-12 sm:px-12 lg:border-l lg:border-t-0 lg:px-16 lg:py-28">
-          <div className="max-w-[28rem]">{children}</div>
-        </section>
       </main>
     </div>
   );
