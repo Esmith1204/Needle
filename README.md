@@ -1,4 +1,4 @@
-# Music Rater
+# Needle
 
 A social music rating app: rate albums on a 10-point decimal scale, or rank them by comparison against your past ratings; write short reviews; and follow friends' ratings.
 
