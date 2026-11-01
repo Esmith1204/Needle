@@ -2,11 +2,11 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field } from "../components/FormField";
+import { GoogleButton } from "../components/GoogleButton";
 import { HandleInput, ProfileNameInput } from "../components/ProfileFields";
 import { useHandleCheck } from "../hooks/useHandleCheck";
 import { signUp } from "../lib/api";
-
-const MIN_PASSWORD = 6;
+import { MIN_PASSWORD } from "../lib/format";
 
 export function SignUpPage() {
   const location = useLocation();
@@ -80,7 +80,9 @@ export function SignUpPage() {
         <h2 className="text-2xl font-extrabold leading-tight">Join Needle</h2>
         <p className="mt-1 text-sm text-muted">Create an account.</p>
 
-        <ProfileNameInput value={displayName} onChange={setDisplayName} error={shown("displayName")} className="mt-6" />
+        <GoogleButton returnTo={(location.state as { from?: string } | null)?.from} onError={setError} className="mt-6" />
+
+        <ProfileNameInput value={displayName} onChange={setDisplayName} error={shown("displayName")} className="mt-4" />
         <HandleInput value={handle} onChange={setHandle} check={handleCheck} error={shown("handle")} className="mt-4" />
 
         <Field label="Email" htmlFor="email" error={shown("email")} className="mt-4">

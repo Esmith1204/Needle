@@ -16,7 +16,7 @@ export function Field({ label, htmlFor, error, hint, className = "", children }:
   const message = error ?? hint;
   return (
     <div className={className}>
-      <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-bold">
+      <label htmlFor={htmlFor} className="mb-1.5 block text-[0.8125rem] font-bold">
         {label}
       </label>
       {children(message ? messageId : undefined)}

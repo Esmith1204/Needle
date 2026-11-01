@@ -4,13 +4,14 @@ import { supabase } from "../lib/supabase";
 import type { Profile } from "../types";
 
 // Tracks the Supabase auth session and the signed-in user's profile.
-//   loading      – waiting for the stored session / profile
-//   unconfigured – Supabase env vars missing from this build
-//   signedOut    – no session: only /login and /signup are reachable
-//   needsProfile – signed in, but the account has no profile row yet
-//   ready        – signed in with a profile (`user` is set)
+//   loading        – waiting for the stored session / profile
+//   unconfigured   – Supabase env vars missing from this build
+//   signedOut      – no session: only /login and /signup are reachable
+//   needsTwoFactor – signed in, but the account's 2FA code hasn't been entered yet
+//   needsProfile   – signed in, but the account has no profile row yet
+//   ready          – signed in with a profile (`user` is set)
 
-export type SessionStatus = "loading" | "unconfigured" | "signedOut" | "needsProfile" | "ready";
+export type SessionStatus = "loading" | "unconfigured" | "signedOut" | "needsTwoFactor" | "needsProfile" | "ready";
 
 interface Session {
   status: SessionStatus;
@@ -33,6 +34,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [user, setUser] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const seenUser = useRef<string | null>(null);
   const loadedFor = useRef<string | null>(null);
 
   const loadProfile = useCallback(async (id: string) => {
@@ -47,6 +49,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /** Holds the profile back until an account with 2FA on has passed it, whichever way it signed in. */
+  const syncSession = useCallback(
+    async (id: string) => {
+      const { data: level } = await supabase!.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (level?.nextLevel === "aal2" && level.currentLevel !== "aal2") {
+        loadedFor.current = null;
+        setUser(null);
+        setStatus("needsTwoFactor");
+        return;
+      }
+      // Token refreshes re-fire this; only load the profile when the user changes.
+      if (loadedFor.current === id) return;
+      loadedFor.current = id;
+      await loadProfile(id);
+    },
+    [loadProfile],
+  );
+
   useEffect(() => {
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -54,20 +74,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setUserId(id);
       setEmail(session?.user.email ?? null);
       if (!id) {
+        seenUser.current = null;
         loadedFor.current = null;
         setUser(null);
         setStatus("signedOut");
         return;
       }
-      // Token refreshes re-fire this; only load the profile when the user changes.
-      if (loadedFor.current === id) return;
-      loadedFor.current = id;
-      setStatus("loading");
+      if (seenUser.current !== id) {
+        seenUser.current = id;
+        setStatus("loading");
+      }
       // Supabase advises against awaiting other calls inside this callback.
-      setTimeout(() => void loadProfile(id), 0);
+      setTimeout(() => void syncSession(id), 0);
     });
     return () => data.subscription.unsubscribe();
-  }, [loadProfile]);
+  }, [syncSession]);
 
   const refreshProfile = useCallback(async () => {
     if (userId) await loadProfile(userId);

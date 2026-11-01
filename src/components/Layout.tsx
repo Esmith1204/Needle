@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation } from "react-router";
 import { useCurrentUser } from "../context/SessionContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { signOut } from "../lib/api";
 import { enter, gsap, slide, useGSAP } from "../lib/motion";
-import { Avatar } from "./Avatar";
+import { AccountMenu } from "./AccountMenu";
 import { DiscoverPanel } from "./DiscoverPanel";
-import { CompassIcon, HomeIcon, LogOutIcon, PlusIcon, UserIcon } from "./Icons";
+import { CompassIcon, HomeIcon, PlusIcon, UserIcon } from "./Icons";
 import { Wordmark } from "./Wordmark";
 
 export function Layout() {
@@ -18,14 +17,15 @@ export function Layout() {
   useGSAP(() => enter(page.current, { y: 6, duration: 0.22 }), { dependencies: [pathname] });
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[1200px] justify-center">
+    <div className="mx-auto flex min-h-dvh max-w-[75rem] justify-center">
       <Sidebar />
 
-      <main className="min-w-0 flex-1 bg-paper/50 pb-16 sm:max-w-[600px] sm:border-x sm:border-line sm:pb-0">
-        <header className="flex h-12 items-center border-b border-line px-4 sm:hidden">
+      <main className="min-w-0 flex-1 bg-paper/50 pb-16 sm:max-w-[37.5rem] sm:border-x sm:border-line sm:pb-0">
+        <header className="relative z-20 flex h-12 items-center justify-between border-b border-line px-4 sm:hidden">
           <Link to="/" aria-label="Needle home">
             <Wordmark className="text-xl" />
           </Link>
+          <AccountMenu placement="below" />
         </header>
         <div ref={page}>
           <Outlet />
@@ -36,7 +36,7 @@ export function Layout() {
       {railFits && pathname !== "/discover" && (
         <aside
           aria-label="Discover"
-          className="sticky top-0 h-dvh w-[320px] shrink-0 overflow-y-auto px-5 py-3 [scrollbar-width:none]"
+          className="sticky top-0 h-dvh w-[20rem] shrink-0 overflow-y-auto px-5 py-3 [scrollbar-width:none]"
         >
           <DiscoverPanel compact />
         </aside>
@@ -55,7 +55,6 @@ function Sidebar() {
   const nav = useRef<HTMLElement>(null);
   const highlight = useRef<HTMLSpanElement>(null);
   const highlightShown = useRef(false);
-  const [signingOut, setSigningOut] = useState(false);
 
   const placeHighlight = useCallback((animate: boolean) => {
     const active = nav.current?.querySelector<HTMLElement>('a[aria-current="page"]');
@@ -77,17 +76,8 @@ function Sidebar() {
     return () => window.removeEventListener("resize", onResize);
   }, [placeHighlight]);
 
-  const onSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[72px] shrink-0 flex-col items-center px-3 py-3 sm:flex xl:w-[240px] xl:items-stretch">
+    <aside className="sticky top-0 z-20 hidden h-dvh w-[4.5rem] shrink-0 flex-col items-center px-3 py-3 sm:flex xl:w-[15rem] xl:items-stretch">
       <Link to="/" aria-label="Needle home" className="mb-3 flex h-11 items-center justify-center xl:justify-start xl:px-3">
         <Wordmark className="hidden text-2xl xl:inline" />
         <img src="/favicon.svg" alt="" className="size-8 xl:hidden" />
@@ -97,7 +87,7 @@ function Sidebar() {
         <span
           ref={highlight}
           aria-hidden="true"
-          className="invisible absolute inset-x-0 top-0 mx-auto h-11 w-11 rounded-full bg-white/[0.08] xl:w-full"
+          className="invisible absolute inset-x-0 top-0 mx-auto h-11 w-11 rounded-full bg-tint/[0.08] xl:w-full"
         />
         <SidebarLink to="/" end label="Home" Icon={HomeIcon} />
         {/* The Discover column takes over from this link once it fits on screen. */}
@@ -110,22 +100,8 @@ function Sidebar() {
         <span className="hidden xl:inline">Rate an album</span>
       </Link>
 
-      <div className="mt-auto flex flex-col items-center gap-2 xl:flex-row xl:gap-2.5 xl:px-1">
-        <Avatar profile={user} size={36} />
-        <span className="hidden min-w-0 flex-1 text-sm leading-tight xl:block">
-          <span className="block truncate font-bold">{user.displayName}</span>
-          <span className="block truncate text-xs text-muted">@{user.handle}</span>
-        </span>
-        <button
-          type="button"
-          onClick={onSignOut}
-          disabled={signingOut}
-          aria-label="Sign out"
-          title="Sign out"
-          className="rounded-full p-2 text-muted transition-colors hover:bg-white/5 hover:text-ink disabled:opacity-60"
-        >
-          <LogOutIcon size={18} />
-        </button>
+      <div className="mt-auto">
+        <AccountMenu placement="above" showIdentity />
       </div>
     </aside>
   );
@@ -146,8 +122,8 @@ function SidebarLink({ to, end, label, Icon, className = "" }: SidebarLinkProps)
       end={end}
       aria-label={label}
       className={({ isActive }) =>
-        `relative flex h-11 w-11 items-center justify-center gap-3 rounded-full text-[15px] transition-colors xl:w-full xl:justify-start xl:px-3 ${
-          isActive ? "font-extrabold text-white" : "font-semibold text-muted hover:bg-white/5 hover:text-ink"
+        `relative flex h-11 w-11 items-center justify-center gap-3 rounded-full text-[0.9375rem] transition-colors xl:w-full xl:justify-start xl:px-3 ${
+          isActive ? "font-extrabold text-ink" : "font-semibold text-muted hover:bg-tint/5 hover:text-ink"
         } ${className}`
       }
     >

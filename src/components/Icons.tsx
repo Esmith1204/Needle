@@ -57,6 +57,32 @@ export const LogOutIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const AccessibilityIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="4.5" r="1.8" />
+    <path d="M4.5 8.5c2.5.8 5 1.2 7.5 1.2s5-.4 7.5-1.2" />
+    <path d="M12 9.7V14" />
+    <path d="m8.5 21 3.5-7 3.5 7" />
+  </Icon>
+);
+
+export const ShieldIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3 5 5.8v5.7c0 4.3 2.9 7.8 7 9.5 4.1-1.7 7-5.2 7-9.5V5.8L12 3Z" />
+    <path d="m9 12 2.2 2.2L15.2 10" />
+  </Icon>
+);
+
+/** Google's "G" keeps its brand colors, as Google's sign-in guidelines require. */
+export const GoogleIcon = ({ size = 18, ...p }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...p}>
+    <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.5 5.5 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8Z" />
+    <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.2v3.1A12 12 0 0 0 12 24Z" />
+    <path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.2a12 12 0 0 0 0 10.8l4.1-3.1Z" />
+    <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8L20 3.2A12 12 0 0 0 1.2 6.6l4.1 3.1c1-2.9 3.6-4.9 6.7-4.9Z" />
+  </svg>
+);
+
 export const CommentIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z" />

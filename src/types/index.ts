@@ -49,6 +49,25 @@ export interface NewPostInput {
   method: RatingMethod;
 }
 
+/** What the signed-in account can sign in with, for the Settings page. */
+export interface AccountSecurity {
+  email: string | null;
+  /** Created with an email and password; Google-only accounts can add a password later. */
+  hasPassword: boolean;
+  /** The connected Google account, or null. */
+  google: { email: string | null } | null;
+  twoFactorEnabled: boolean;
+  hasRecoveryCode: boolean;
+}
+
+export interface TotpEnrollment {
+  factorId: string;
+  /** An image data URL for authenticator apps to scan. */
+  qrCode: string;
+  /** The same key as text, for typing in by hand. */
+  secret: string;
+}
+
 export type FeedScope = "everyone" | "friends";
 
 export interface TopAlbum {

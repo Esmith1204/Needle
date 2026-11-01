@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Dark theme built around two brand colors: violet #573a9b and blue #2755a1. */
+/* Default dark theme built around two brand colors: violet #573a9b and blue #2755a1.
+   Light mode and the other color options override these below. */
 @theme {
   --font-sans: "Nunito", ui-rounded, ui-sans-serif, system-ui, sans-serif;
   --font-brand: "Stack Sans Notch", "Nunito", ui-sans-serif, sans-serif;
@@ -20,6 +21,8 @@
   /* Lighter tints of the brand colors, for text, icons, and thin marks: the originals are too dim on dark surfaces. */
   --color-accent: #a99bf0;
   --color-accent-blue: #7ea6ee;
+  /* Faint overlays for hover states and raised rows: lightens in dark mode, darkens in light. */
+  --color-tint: #ffffff;
 }
 
 /* The brand gradient, for filled surfaces. White text passes AA on both ends. */
@@ -46,6 +49,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
+    opacity: var(--glow, 1);
     background:
       radial-gradient(60rem 40rem at 8% -10%, rgb(87 58 155 / 0.3), transparent 65%),
       radial-gradient(56rem 42rem at 100% 0%, rgb(39 85 161 / 0.28), transparent 65%);
@@ -55,6 +59,104 @@
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-accent;
+  }
+
+  /* ─── Accessibility options (see src/lib/preferences.ts) ─────────────────── */
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --glow: 0.35;
+    --color-paper: #f5f6fb;
+    --color-card: #ffffff;
+    --color-field: #eceef6;
+    --color-placeholder: #dfe2ee;
+    --color-ink: #14162a;
+    --color-muted: #565a72;
+    --color-line: #dcdfeb;
+    --color-rule: #b4b8cc;
+    --color-danger: #b3261e;
+    --color-accent: #573a9b;
+    --color-accent-blue: #2755a1;
+    --color-tint: #14162a;
+  }
+
+  :root[data-colors="contrast"] {
+    --glow: 0;
+    --color-paper: #000000;
+    --color-card: #0a0a0a;
+    --color-field: #141414;
+    --color-placeholder: #1f1f1f;
+    --color-ink: #ffffff;
+    --color-muted: #d6d6e0;
+    --color-line: #8a8a9a;
+    --color-rule: #ffffff;
+    --color-danger: #ff9c94;
+    --color-violet: #4a2f8f;
+    --color-blue: #1f4688;
+    --color-accent: #c8bfff;
+    --color-accent-blue: #a8c8ff;
+  }
+  :root[data-colors="contrast"][data-theme="light"] {
+    --color-paper: #ffffff;
+    --color-card: #ffffff;
+    --color-field: #f2f2f6;
+    --color-placeholder: #e4e4ea;
+    --color-ink: #000000;
+    --color-muted: #2e2e3a;
+    --color-line: #6b6b7a;
+    --color-rule: #000000;
+    --color-danger: #8f1410;
+    --color-violet: #3b2480;
+    --color-blue: #143a80;
+    --color-accent: #3b2480;
+    --color-accent-blue: #143a80;
+  }
+
+  /* Okabe-Ito blues and oranges stay distinct across the common kinds of color blindness. */
+  :root[data-colors="colorblind"] {
+    --glow: 0;
+    --color-danger: #e69f00;
+    --color-violet: #0072b2;
+    --color-blue: #005a8c;
+    --color-accent: #56b4e9;
+    --color-accent-blue: #7fc8ef;
+  }
+  :root[data-colors="colorblind"][data-theme="light"] {
+    --color-danger: #a34700;
+    --color-accent: #005a8c;
+    --color-accent-blue: #0072b2;
+  }
+
+  :root[data-colors="grayscale"] {
+    filter: grayscale(1);
+  }
+
+  /* Percentages keep whatever base size the browser is set to. Layout scales with it too. */
+  :root[data-font-size="small"] {
+    font-size: 87.5%;
+  }
+  :root[data-font-size="large"] {
+    font-size: 112.5%;
+  }
+  :root[data-font-size="xlarge"] {
+    font-size: 125%;
+  }
+
+  /* GSAP checks the same setting in reducedMotion(); this covers CSS transitions. */
+  :root[data-motion="reduce"] *,
+  :root[data-motion="reduce"] *::before,
+  :root[data-motion="reduce"] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -74,6 +176,9 @@
     @apply bg-brand text-white hover:brightness-125;
   }
   .btn-outline {
-    @apply border border-rule text-ink hover:bg-white/5;
+    @apply border border-rule text-ink hover:bg-tint/5;
+  }
+  .btn-danger {
+    @apply bg-danger text-paper hover:brightness-110;
   }
 }

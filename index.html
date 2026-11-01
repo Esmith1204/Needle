@@ -13,6 +13,15 @@
       rel="stylesheet"
     />
     <title>Needle</title>
+    <!-- Applies the saved accessibility options before first paint (see src/lib/preferences.ts). -->
+    <script>
+      try {
+        var saved = JSON.parse(localStorage.getItem("needle.preferences") || "{}");
+        ["theme", "colors", "fontSize", "motion"].forEach(function (key) {
+          if (saved[key]) document.documentElement.dataset[key] = saved[key];
+        });
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

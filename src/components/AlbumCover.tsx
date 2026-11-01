@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { usePreferences } from "../context/PreferencesContext";
+import type { Album } from "../types";
 
 interface AlbumCoverProps {
   src: string | null | undefined;
@@ -25,6 +27,18 @@ export function AlbumCover({ src, title, className = "" }: AlbumCoverProps) {
         <VinylPlaceholder title={title} />
       )}
     </div>
+  );
+}
+
+/** The cover's description as visible text, for people who turned that on in Accessibility options. */
+export function CoverDescription({ album }: { album: Pick<Album, "title" | "artist" | "coverUrl"> }) {
+  const { preferences } = usePreferences();
+  if (!preferences.imageDescriptions) return null;
+  const byline = album.artist ? ` by ${album.artist}` : "";
+  return (
+    <span className="mt-0.5 block text-xs text-muted">
+      {album.coverUrl ? `Image: cover of ${album.title}${byline}` : `Image: no cover for ${album.title}${byline}`}
+    </span>
   );
 }
 

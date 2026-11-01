@@ -1,4 +1,5 @@
 export const REVIEW_MAX_LENGTH = 150;
+export const MIN_PASSWORD = 6;
 
 /** "0" through "10", with at most one decimal place: 7, 7.5, 10.0 — not 7.55 or 10.5. */
 const RATING_PATTERN = /^(?:10(?:\.0)?|\d(?:\.\d)?)$/;

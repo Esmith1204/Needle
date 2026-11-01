@@ -50,13 +50,13 @@ export function RatingHistogram({ ratings }: { ratings: number[] }) {
               className="w-full rounded-t-[4px] bg-accent/80 transition-colors group-hover:bg-accent"
               style={{ height: count ? `${(count / max) * 100}%` : 2, opacity: count ? 1 : 0.25 }}
             />
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-paper group-hover:block">
+            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[0.6875rem] font-semibold text-paper group-hover:block">
               {bucketLabel(b)}: {count} {count === 1 ? "rating" : "ratings"}
             </div>
           </div>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-muted tabular-nums" aria-hidden="true">
+      <div className="mt-1 flex justify-between text-[0.625rem] text-muted tabular-nums" aria-hidden="true">
         <span>0</span>
         <span>5</span>
         <span>10</span>

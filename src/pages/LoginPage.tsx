@@ -1,15 +1,20 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field } from "../components/FormField";
+import { GoogleButton } from "../components/GoogleButton";
 import { signIn } from "../lib/api";
+import { clearOAuthError, oauthError } from "../lib/supabase";
 
 export function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // Arriving back from a failed Google sign-in lands here with its reason.
+  const [error, setError] = useState<string | null>(oauthError);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => clearOAuthError, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,7 +48,9 @@ export function LoginPage() {
         <h2 className="text-2xl font-extrabold leading-tight">Sign in</h2>
         <p className="mt-1 text-sm text-muted">Welcome back.</p>
 
-        <Field label="Email" htmlFor="email" className="mt-6">
+        <GoogleButton returnTo={(location.state as { from?: string } | null)?.from} onError={setError} className="mt-6" />
+
+        <Field label="Email" htmlFor="email" className="mt-4">
           {(describedBy) => (
             <input
               id="email"

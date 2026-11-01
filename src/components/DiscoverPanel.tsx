@@ -6,7 +6,7 @@ import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
 import { listFriends, listTopAlbums, searchProfiles, setFollowing } from "../lib/api";
 import { enter, pop, useGSAP } from "../lib/motion";
 import type { Profile, TopAlbum } from "../types";
-import { AlbumCover } from "./AlbumCover";
+import { AlbumCover, CoverDescription } from "./AlbumCover";
 import { Avatar } from "./Avatar";
 import { CheckIcon, PlusIcon, SearchIcon } from "./Icons";
 import { ScoreBadge } from "./ScoreBadge";
@@ -97,7 +97,7 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
           </ul>
         )}
         {compact && people && people.length > COMPACT_PEOPLE && (
-          <Link to="/discover" className="block rounded-b-2xl px-4 py-2.5 text-sm font-bold text-accent hover:bg-white/5">
+          <Link to="/discover" className="block rounded-b-2xl px-4 py-2.5 text-sm font-bold text-accent hover:bg-tint/5">
             Show more
           </Link>
         )}
@@ -127,7 +127,7 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section data-discover-section className="rounded-2xl border border-line bg-card/70">
-      <h2 className="px-4 pb-1.5 pt-3 text-[15px] font-extrabold">{title}</h2>
+      <h2 className="px-4 pb-1.5 pt-3 text-[0.9375rem] font-extrabold">{title}</h2>
       {children}
     </section>
   );
@@ -148,6 +148,7 @@ function AlbumRow({ entry }: { entry: TopAlbum }) {
           {album.artist ? `${album.artist} · ` : ""}
           {ratingCount} {ratingCount === 1 ? "rating" : "ratings"}
         </span>
+        <CoverDescription album={album} />
       </span>
       <ScoreBadge rating={averageRating} size="sm" />
     </li>

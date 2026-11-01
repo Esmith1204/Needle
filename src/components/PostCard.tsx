@@ -5,7 +5,7 @@ import { deleteRating } from "../lib/api";
 import { enter, pop, useGSAP } from "../lib/motion";
 import type { PostWithAuthor } from "../types";
 import { timeAgo } from "../lib/format";
-import { AlbumCover } from "./AlbumCover";
+import { AlbumCover, CoverDescription } from "./AlbumCover";
 import { Avatar } from "./Avatar";
 import { BookmarkIcon, CommentIcon, HeartIcon, MoreIcon, RepostIcon } from "./Icons";
 import { ScoreBadge } from "./ScoreBadge";
@@ -26,7 +26,7 @@ export function PostCard({ post, onDeleted }: PostCardProps) {
 
   return (
     <article className="flex gap-3 border-b border-line px-4 py-3">
-      <Link to={profileHref} className="shrink-0">
+      <Link to={profileHref} aria-label={`${author.displayName}'s profile`} className="shrink-0">
         <Avatar profile={author} size={40} />
       </Link>
 
@@ -43,22 +43,23 @@ export function PostCard({ post, onDeleted }: PostCardProps) {
           {viewer.id === author.id && <OwnPostMenu postId={post.id} onDeleted={onDeleted} />}
         </header>
 
-        <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-line bg-white/[0.03] p-2">
+        <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-line bg-tint/[0.03] p-2">
           <AlbumCover src={album.coverUrl} title={album.title} className="size-14 shrink-0 rounded-lg" />
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[15px] font-bold leading-snug">{album.title}</h3>
+            <h3 className="truncate text-[0.9375rem] font-bold leading-snug">{album.title}</h3>
             {album.artist && (
-              <p className="truncate text-[13px] text-muted">
+              <p className="truncate text-[0.8125rem] text-muted">
                 {album.artist}
                 {album.year ? ` · ${album.year}` : ""}
               </p>
             )}
             {post.method === "comparison" && <p className="truncate text-xs text-muted">Ranked by comparison</p>}
+            <CoverDescription album={album} />
           </div>
           <ScoreBadge rating={post.rating} />
         </div>
 
-        {post.review && <p className="mt-2 text-[15px] leading-snug">{post.review}</p>}
+        {post.review && <p className="mt-2 text-[0.9375rem] leading-snug">{post.review}</p>}
 
         <footer className="-ml-2 mt-1 flex max-w-xs items-center justify-between text-muted">
           <ActionButton label="Comments">
@@ -163,7 +164,7 @@ function OwnPostMenu({ postId, onDeleted }: { postId: string; onDeleted?: (id: s
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full p-1 text-muted transition-colors hover:bg-white/5 hover:text-ink"
+        className="rounded-full p-1 text-muted transition-colors hover:bg-tint/5 hover:text-ink"
       >
         <MoreIcon size={18} />
       </button>

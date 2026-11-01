@@ -3,14 +3,17 @@ import gsap from "gsap";
 
 // Shared GSAP helpers. Motion here confirms an action or shows where something came
 // from: it stays under half a second, animates only transform and opacity, and is
-// skipped entirely for people who ask for reduced motion.
+// skipped entirely for people who ask for reduced motion, in their OS or in Needle.
 
 gsap.registerPlugin(useGSAP);
 
 export { gsap, useGSAP };
 
 export function reducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    document.documentElement.dataset.motion === "reduce" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 /** Fades and lifts elements into place, leaving no inline styles behind. */

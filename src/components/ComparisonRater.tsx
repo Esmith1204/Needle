@@ -13,7 +13,7 @@ import {
 import { formatRating } from "../lib/format";
 import { gsap, reducedMotion, useGSAP } from "../lib/motion";
 import type { Album, Post } from "../types";
-import { AlbumCover } from "./AlbumCover";
+import { AlbumCover, CoverDescription } from "./AlbumCover";
 
 interface ComparisonRaterProps {
   album: Album;
@@ -169,6 +169,7 @@ function ChoiceCard({ album, label, onClick }: { album: Album; label: string; on
       <span className="mt-1.5 block text-xs font-semibold text-muted">{label}</span>
       <span className="block truncate text-sm font-bold group-hover:underline">{album.title}</span>
       {album.artist && <span className="block truncate text-xs text-muted">{album.artist}</span>}
+      <CoverDescription album={album} />
     </button>
   );
 }

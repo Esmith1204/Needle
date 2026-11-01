@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { useSession } from "../context/SessionContext";
 import { missingSupabaseEnv } from "../lib/supabase";
+import { TwoFactorChallengePage } from "../pages/TwoFactorChallengePage";
 import { Wordmark } from "./Wordmark";
 
 /** Signed-in routes: everyone else is sent to /login (and back here afterwards). */
@@ -10,6 +11,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   if (status === "unconfigured") return <NotConfigured />;
   if (status === "loading") return <Splash />;
+  if (status === "needsTwoFactor") return <TwoFactorChallengePage />;
   if (status === "signedOut") return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (status === "needsProfile") return <Navigate to="/welcome" replace />;
   return children;
@@ -22,6 +24,7 @@ export function PublicOnly({ children }: { children: ReactNode }) {
   const from = (location.state as { from?: string } | null)?.from ?? "/";
   if (status === "unconfigured") return <NotConfigured />;
   if (status === "loading") return <Splash />;
+  if (status === "needsTwoFactor") return <TwoFactorChallengePage />;
   if (status === "ready") return <Navigate to={from} replace />;
   if (status === "needsProfile") return <Navigate to="/welcome" replace />;
   return children;
@@ -32,6 +35,7 @@ export function RequireNoProfile({ children }: { children: ReactNode }) {
   const { status } = useSession();
   if (status === "unconfigured") return <NotConfigured />;
   if (status === "loading") return <Splash />;
+  if (status === "needsTwoFactor") return <TwoFactorChallengePage />;
   if (status === "signedOut") return <Navigate to="/login" replace />;
   if (status === "ready") return <Navigate to="/" replace />;
   return children;

@@ -26,6 +26,8 @@ The app needs a Supabase project. See [Supabase setup](#supabase-setup).
 | `/discover`   | Search people, add friends, and see popular albums (also the right column on wide screens) |
 | `/u/:handle`  | Profile: live counts, histogram, and Ratings / Reviews / Friends tabs                |
 | `/profile`    | Redirects to your own profile                                                        |
+| `/settings/accessibility` | Light mode, color options, font size, reduced motion, image descriptions (saved per device) |
+| `/settings/security` | Password, two-factor authentication and its recovery code, connected Google account, delete your profile |
 
 ## Rate by comparison
 
@@ -35,14 +37,16 @@ Inspired by Beli: once you have 10 ratings, **Compare** asks whether you loved t
 
 ```
 src/
-  components/   Layout, DiscoverPanel, PostCard, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
-  pages/        Login, SignUp, Welcome, Timeline, CreateRating, Discover, Profile
+  components/   Layout, AccountMenu, DiscoverPanel, PostCard, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
+  pages/        Login, SignUp, Welcome, TwoFactorChallenge, Timeline, CreateRating, Discover, Profile, Accessibility, Security
   context/      SessionContext: Supabase auth session + the signed-in user's profile
+                PreferencesContext: the accessibility options
   hooks/        useAsync, useRealtimeRefresh (Supabase Realtime), useHandleCheck, useEnterList
   lib/
     api.ts          All Supabase reads/writes (auth, profiles, friends, ratings)
     compareRank.ts  Rate-by-comparison logic
-    motion.ts       GSAP helpers; every animation respects prefers-reduced-motion
+    motion.ts       GSAP helpers; every animation respects reduced motion (device or Needle setting)
+    preferences.ts  Saves the accessibility options and applies them to <html> for index.css
     supabase.ts     Typed Supabase client
     itunes.ts       Album + cover search via the iTunes Search API
     format.ts       Rating/handle validation, formatting, image resizing
@@ -50,15 +54,18 @@ src/
 supabase/migrations/
   001_ratings.sql   ratings table (prototype)
   002_accounts.sql  profiles, sign-up trigger, friendships, ownership rules, realtime
+  003_account_security.sql  2FA enforcement on every table, account deletion
+  004_account_protection.sql  Server checks on sign-in method changes, recovery codes
 ```
 
 ## Supabase setup
 
 1. **Create a project** at [supabase.com](https://supabase.com/dashboard).
-2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`.
+2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`.
    `002` deletes any existing ratings. They belonged to the old placeholder user.
 3. **Auth settings** (Authentication in the dashboard):
-   - **Sign In / Providers → Email:** turn **Confirm email** off for class testing. With it on, new users must click an emailed link before signing in, and Supabase's built-in mailer only sends a few emails per hour.
+   - **Sign In / Providers → Email:** turn on **Require current password when changing password**.
+   - **Sign In / Providers → Email:** turn **Confirm email** off for class testing. With it on, new users must click an emailed link before signing in, and Supabase's built-in mailer only delivers to your project's team members, 2 emails per hour. Before real users sign up, [add your own SMTP server](https://supabase.com/docs/guides/auth/auth-smtp) and turn it back on. Until then, anyone can register an email address they don't own.
    - **URL Configuration:** set **Site URL** to your Vercel URL, and add `http://localhost:5173/**` and `https://<your-app>.vercel.app/**` under **Redirect URLs**. Confirmation links use these.
 4. **Keys:** click **Connect** (or **Project Settings → API Keys**) and copy the **Project URL** and **publishable key**. Never use the `service_role` or secret key here.
 5. **Local env:** create `.env.local` (gitignored):
@@ -69,8 +76,29 @@ supabase/migrations/
    (`VITE_SUPABASE_ANON_KEY` is also accepted for a legacy anon key.) Restart `npm run dev` after editing.
 6. **Vercel:** add the same two variables under **Project → Settings → Environment Variables**, then **redeploy**. Vite bakes them into the build.
 
+### Google sign-in
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type **Web application**. Add `https://<your-project-ref>.supabase.co/auth/v1/callback` as an **Authorized redirect URI**.
+2. In Supabase, go to **Authentication → Sign In / Providers → Google**, turn it on, and paste the client ID and secret. Until this is done, "Continue with Google" shows a message instead of redirecting.
+3. On the same page, turn on **Allow manual linking**. Settings → **Connect** needs it.
+4. The **Redirect URLs** from step 3 above already cover the Google return trip.
+
+Migration 004 stops Supabase's automatic merge of a Google sign-in into an existing account with the same email. Someone with a password account signs in with it and connects Google from Settings. After that, either way of signing in works.
+
+### How account security works
+
+- **Two-factor:** an account with 2FA on stays at step one (`aal1`) after a password or Google sign-in until it enters a code. The app shows the code screen, and migration 003's restrictive policies refuse data to anything calling the API directly.
+- **Confirm it's you:** changing a password, turning 2FA on or off, creating a recovery code, connecting or disconnecting Google, and deleting a profile each ask for an authenticator code if 2FA is on, otherwise the password, or Google for accounts without one.
+- **Server checks:** the database enforces this too. Migration 004's triggers refuse changes to Google, 2FA, and a Google-only account's first password unless the session has just got a one-use grant, which needs a sign-in or 2FA check from the last 10 minutes. `delete_my_account()` applies the same test. Changing an existing password relies on Supabase's **Require current password** setting (see above), so turn that on.
+- **Recovery codes:** Supabase's own are still experimental and off by default, so migration 004 adds one. Each 2FA account gets one code, stored hashed. Using it requires passing step one of sign-in, turns 2FA off, and signs out other devices.
+- **Lost authenticator and no recovery code:** run this in the SQL Editor, after checking who is asking: `delete from auth.mfa_factors where user_id = '<user id>';`. The dashboard's remove-factor button is refused, because it goes through the same checks as everyone else.
+- **Security emails (optional):** Supabase can email users when their password, Google connection, or 2FA changes. Turn these on under **Authentication → Emails** once you have your own SMTP server.
+
+If the triggers ever block something they shouldn't, the top of `004_account_protection.sql` lists the statements that remove them.
+
 ## Not built yet
 
 - Likes, bookmarks, comments, and reposts on posts only toggle on screen; they aren't stored.
 - Editing your profile (name, bio, avatar) after sign-up.
+- Resetting a forgotten password. When this is built, a Google-only account setting its first password this way needs an `add_password` grant, which migration 004's trigger would otherwise refuse.
 - Uploaded covers are stored inline in the rating row; moving them to Supabase Storage would be better at scale.

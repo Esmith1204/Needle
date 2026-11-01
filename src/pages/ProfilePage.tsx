@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router";
-import { AlbumCover } from "../components/AlbumCover";
+import { AlbumCover, CoverDescription } from "../components/AlbumCover";
 import { Avatar } from "../components/Avatar";
 import { CheckIcon, GridIcon, ListIcon, PlusIcon } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
@@ -10,7 +10,7 @@ import { Tabs } from "../components/Tabs";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
-import { getProfileByHandle, isFollowing, listFriends, listRatingsByUser, setFollowing, signOut } from "../lib/api";
+import { getProfileByHandle, isFollowing, listFriends, listRatingsByUser, setFollowing } from "../lib/api";
 import { formatRating } from "../lib/format";
 import { enter, useGSAP } from "../lib/motion";
 import type { PostWithAuthor, Profile, ProfileWithStats } from "../types";
@@ -227,11 +227,7 @@ function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onF
         <div className="flex items-start justify-between gap-3">
           <Avatar profile={profile} size={72} className="-mt-9 ring-4 ring-paper" />
           <div className="mt-2.5 flex flex-col items-end gap-1">
-            {isMe ? (
-              <button type="button" onClick={() => void signOut()} className="btn btn-outline h-8 px-3 text-xs sm:hidden">
-                Sign out
-              </button>
-            ) : following ? (
+            {isMe ? null : following ? (
               <button
                 type="button"
                 onClick={toggleFriend}
@@ -287,7 +283,7 @@ function FriendsList({ friends, isMe }: { friends: Profile[]; isMe: boolean }) {
     <ul>
       {friends.map((friend) => (
         <li key={friend.id} className="border-b border-line">
-          <Link to={`/u/${friend.handle}`} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03]">
+          <Link to={`/u/${friend.handle}`} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-tint/[0.03]">
             <Avatar profile={friend} size={40} />
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-sm font-bold group-hover:underline">{friend.displayName}</span>
@@ -320,6 +316,7 @@ function RatingTile({ post, showTitle }: { post: PostWithAuthor; showTitle?: boo
       <figcaption className="mt-1 text-xs">
         <span className="font-bold tabular-nums">{formatRating(post.rating)}</span>
         {showTitle && <span className="block truncate text-muted">{post.album.title}</span>}
+        <CoverDescription album={post.album} />
       </figcaption>
     </figure>
   );
@@ -342,7 +339,7 @@ function ViewToggle({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-full p-1.5 transition-colors hover:bg-white/5 ${active ? "text-ink" : "text-muted hover:text-ink"}`}
+      className={`rounded-full p-1.5 transition-colors hover:bg-tint/5 ${active ? "text-ink" : "text-muted hover:text-ink"}`}
     >
       {children}
     </button>

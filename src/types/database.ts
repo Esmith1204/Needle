@@ -116,6 +116,30 @@ export type Database = {
         Args: { candidate: string };
         Returns: boolean;
       };
+      delete_my_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      authorize_account_change: {
+        Args: { change: string };
+        Returns: undefined;
+      };
+      account_security_status: {
+        Args: Record<string, never>;
+        Returns: { has_password: boolean; has_recovery_code: boolean };
+      };
+      ensure_email_identity: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      create_recovery_code: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      redeem_recovery_code: {
+        Args: { code: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
