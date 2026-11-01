@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { AlbumCover, CoverDescription } from "../components/AlbumCover";
+import { AlbumPreview } from "../components/AlbumPreview";
 import { Avatar } from "../components/Avatar";
 import { Field } from "../components/FormField";
 import { TrashIcon } from "../components/Icons";
@@ -102,6 +103,8 @@ function PostPage({ id }: { id: string }) {
               </div>
               <ScoreBadge rating={data.post.rating} />
             </div>
+
+            <AlbumPreview album={data.post.album} quiet className="mt-3" />
 
             {editing && viewer.id === data.post.author.id ? (
               <EditReviewForm

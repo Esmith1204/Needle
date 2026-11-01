@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { AlbumSuggestions } from "../components/AlbumSuggestions";
 import { PostCard } from "../components/PostCard";
 import { Tabs } from "../components/Tabs";
 import { useCurrentUser } from "../context/SessionContext";
@@ -62,6 +63,8 @@ export function TimelinePage() {
           </button>
         </div>
       )}
+
+      <AlbumSuggestions userId={viewer.id} />
 
       {error ? (
         <div className="px-6 py-10 text-center">

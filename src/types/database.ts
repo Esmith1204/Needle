@@ -76,6 +76,8 @@ export type Database = {
           rating: number;
           review: string;
           method: RatingMethod;
+          deezer_album_id: string | null;
+          itunes_album_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -88,6 +90,8 @@ export type Database = {
           rating: number;
           review?: string;
           method?: RatingMethod;
+          deezer_album_id?: string | null;
+          itunes_album_id?: string | null;
           created_at?: string;
         };
         Update: {

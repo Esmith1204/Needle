@@ -25,6 +25,30 @@ export interface Album {
   artist: string | null;
   year: number | null;
   coverUrl: string;
+  /** This album on the services that can play a preview. Not known for every album. */
+  deezerId?: string | null;
+  itunesId?: string | null;
+}
+
+/** An album found by searching, or suggested. */
+export interface AlbumSearchResult extends Album {
+  id: string;
+  recordType: "album" | "ep" | "single";
+}
+
+export interface AlbumSuggestion {
+  album: AlbumSearchResult;
+  /** The title of the rated album it's similar to. */
+  because: string;
+}
+
+/** The little about a past rating that suggestions are worked out from. */
+export interface RatedAlbum {
+  title: string;
+  artist: string | null;
+  rating: number;
+  deezerId: string | null;
+  ratedAt: string;
 }
 
 export interface Post {

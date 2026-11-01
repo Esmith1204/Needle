@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { AlbumCover } from "../components/AlbumCover";
 import { AlbumSearchField } from "../components/AlbumSearchField";
 import { ComparisonRater } from "../components/ComparisonRater";
@@ -12,8 +12,7 @@ import { useAsync } from "../hooks/useAsync";
 import { listRatingsByUser, saveRating } from "../lib/api";
 import { COMPARISON_UNLOCK } from "../lib/compareRank";
 import { fileToCoverDataUrl, parseRating, REVIEW_MAX_LENGTH } from "../lib/format";
-import type { AlbumSearchResult } from "../lib/itunes";
-import type { Album, RatingMethod } from "../types";
+import type { Album, AlbumSearchResult, RatingMethod } from "../types";
 
 interface FieldErrors {
   album?: string;
@@ -28,8 +27,10 @@ export function CreateRatingPage() {
   // The user's past ratings: the comparison pool and the unlock count.
   const past = useAsync(() => listRatingsByUser(user.id, user.id), [user.id]);
 
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<AlbumSearchResult | null>(null);
+  // Arriving from a suggestion, the album is already chosen.
+  const suggested = (useLocation().state as { album?: AlbumSearchResult } | null)?.album ?? null;
+  const [query, setQuery] = useState(suggested?.title ?? "");
+  const [selected, setSelected] = useState<AlbumSearchResult | null>(suggested);
   const [uploadedCover, setUploadedCover] = useState<string | null>(null);
   const [method, setMethod] = useState<RatingMethod>("manual");
   const [ratingText, setRatingText] = useState("");
@@ -44,7 +45,14 @@ export function CreateRatingPage() {
   const albumTitle = selected?.title ?? query.trim();
   const album: Album | null =
     albumTitle && coverUrl
-      ? { title: albumTitle, artist: selected?.artist ?? null, year: selected?.year ?? null, coverUrl }
+      ? {
+          title: albumTitle,
+          artist: selected?.artist ?? null,
+          year: selected?.year ?? null,
+          coverUrl,
+          deezerId: selected?.deezerId ?? null,
+          itunesId: selected?.itunesId ?? null,
+        }
       : null;
   const ratingCount = past.data?.length ?? 0;
   const comparisonUnlocked = ratingCount >= COMPARISON_UNLOCK;
@@ -133,7 +141,7 @@ export function CreateRatingPage() {
                     {uploadedCover
                       ? "Using your uploaded image"
                       : selected
-                        ? "Cover from Apple Music"
+                        ? "Cover from the search result"
                         : "Pick a search result or upload artwork."}
                   </p>
                 </div>

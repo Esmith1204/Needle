@@ -15,6 +15,7 @@ import type {
   ProfileImageKind,
   ProfileWithStats,
   Post,
+  RatedAlbum,
   RatingMethod,
   TopAlbum,
   TotpEnrollment,
@@ -65,6 +66,8 @@ const toPost = (row: RatingRow): Post => ({
     artist: row.album_artist,
     year: row.album_year,
     coverUrl: row.cover_url,
+    deezerId: row.deezer_album_id,
+    itunesId: row.itunes_album_id,
   },
   // Postgres numeric can arrive as a string.
   rating: Number(row.rating),
@@ -675,11 +678,29 @@ export async function saveRating(userId: string, input: NewPostInput): Promise<P
       rating: input.rating,
       review: input.review,
       method: input.method,
+      deezer_album_id: input.album.deezerId ?? null,
+      itunes_album_id: input.album.itunesId ?? null,
     })
     .select()
     .single();
   if (error) fail(error);
   return toPost(data);
+}
+
+/** Everything `userId` has rated, without the covers: uploaded ones are large, and this runs on the home page. */
+export async function listRatedAlbums(userId: string): Promise<RatedAlbum[]> {
+  const { data, error } = await db()
+    .from("ratings")
+    .select("album_title, album_artist, rating, deezer_album_id, created_at")
+    .eq("user_id", userId);
+  if (error) fail(error);
+  return data.map((row) => ({
+    title: row.album_title,
+    artist: row.album_artist,
+    rating: Number(row.rating),
+    deezerId: row.deezer_album_id,
+    ratedAt: row.created_at,
+  }));
 }
 
 export async function updateRating(

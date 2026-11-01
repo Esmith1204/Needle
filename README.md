@@ -53,7 +53,10 @@ src/
     motion.ts       GSAP helpers; every animation respects reduced motion (device or Needle setting)
     preferences.ts  Saves the accessibility options and applies them to <html> for index.css
     supabase.ts     Typed Supabase client
-    itunes.ts       Album + cover search via the iTunes Search API
+    albumSearch.ts  Album search across iTunes and Deezer, and finding a preview player for a rating
+    suggestions.ts  "Suggested for you", from what someone rated highly
+    itunes.ts       The iTunes Search API
+    deezer.ts       The Deezer API
     gifCrop.ts      Crops an animated GIF frame by frame, keeping its animation
     format.ts       Rating/handle validation, formatting, image cropping and resizing
   types/        App types + Supabase table types (mirror the migrations)
@@ -63,12 +66,13 @@ supabase/migrations/
   003_account_security.sql  2FA enforcement on every table, account deletion
   004_account_protection.sql  Server checks on sign-in method changes, recovery codes
   005_social.sql    friendships become follows; likes, reposts, comments, album lists, profile images
+  006_album_previews.sql  Which album a rating is on Deezer and Apple Music, for preview players
 ```
 
 ## Supabase setup
 
 1. **Create a project** at [supabase.com](https://supabase.com/dashboard).
-2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`, then `005_social.sql`.
+2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`, then `005_social.sql`, then `006_album_previews.sql`.
    `002` deletes any existing ratings. They belonged to the old placeholder user. `005` keeps everything, and turns each friend into a follow. Deploy the matching app at the same time, because older builds can't read the renamed table.
 3. **Auth settings** (Authentication in the dashboard):
    - **Sign In / Providers → Email:** turn on **Require current password when changing password**.
@@ -82,6 +86,16 @@ supabase/migrations/
    ```
    (`VITE_SUPABASE_ANON_KEY` is also accepted for a legacy anon key.) Restart `npm run dev` after editing.
 6. **Vercel:** add the same two variables under **Project → Settings → Environment Variables**, then **redeploy**. Vite bakes them into the build.
+
+### Music data
+
+Album search, previews, and suggestions need no keys or accounts:
+
+- **Search** asks iTunes and Deezer together and merges the results. In a test of 40 well-known albums and singles, iTunes alone found 26, Deezer 36, and the two together 37. If one is down or rate-limiting, the other still answers.
+- **Previews** are players hosted by Deezer, or by Apple Music for albums only it has. Listeners without an account get short samples. A rating saves which album it is when it's picked from search. Older ratings are looked up by exact title and artist, and show no player if there's no match.
+- **Suggestions** come from Deezer's related artists. They're worked out in the browser and saved on that device for a day, or until the albums they're based on change.
+- **Deezer's API can't be called from a browser directly**, so `vercel.json` and `vite.config.ts` pass `/deezer-api/*` through to it. Deezer allows about 50 requests per 5 seconds from one address, and everyone's requests share Vercel's. Search falls back to iTunes if that's ever reached.
+- **Why not Spotify:** its players need Spotify album ids, which only its API gives out. That API needs a server to hold its secret, a paid Premium subscription on the developer's account, and allows 10 search results per request. It also no longer offers related artists or recommendations to new apps.
 
 ### Profile pictures and banners
 

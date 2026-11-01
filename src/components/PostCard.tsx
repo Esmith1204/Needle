@@ -1,11 +1,13 @@
-import type { MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useCurrentUser } from "../context/SessionContext";
+import { canPreview } from "../lib/albumSearch";
 import { timeAgo } from "../lib/format";
 import type { PostWithAuthor, Profile } from "../types";
 import { AlbumCover, CoverDescription } from "./AlbumCover";
+import { AlbumPreview } from "./AlbumPreview";
 import { Avatar } from "./Avatar";
-import { RepostIcon } from "./Icons";
+import { PlayIcon, RepostIcon } from "./Icons";
 import { PostActions } from "./PostActions";
 import { PostMenu } from "./PostMenu";
 import { ScoreBadge } from "./ScoreBadge";
@@ -24,11 +26,13 @@ export function PostCard({ post, repostedBy, onDeleted }: PostCardProps) {
   const navigate = useNavigate();
   const profileHref = `/u/${author.handle}`;
   const postHref = `/post/${post.id}`;
+  // Players load only on request: a whole feed of them would be slow, and would tell Deezer who's browsing.
+  const [previewing, setPreviewing] = useState(false);
 
   // Pressing anywhere on the card opens it, except on its own controls or while selecting text.
   // The timestamp is a real link to the same place, for keyboards and screen readers.
   const onCardClick = (e: MouseEvent) => {
-    if ((e.target as Element).closest("a, button, [role='menu']")) return;
+    if ((e.target as Element).closest("a, button, [role='menu'], [data-preview]")) return;
     if (window.getSelection()?.toString()) return;
     navigate(postHref);
   };
@@ -82,9 +86,27 @@ export function PostCard({ post, repostedBy, onDeleted }: PostCardProps) {
               )}
               {post.method === "comparison" && <p className="truncate text-xs text-muted">Ranked by comparison</p>}
               <CoverDescription album={album} />
+              {canPreview(album) && (
+                <button
+                  type="button"
+                  aria-expanded={previewing}
+                  aria-label={`${previewing ? "Hide preview of" : "Preview"} ${album.title}`}
+                  onClick={() => setPreviewing((open) => !open)}
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                >
+                  <PlayIcon size={10} />
+                  {previewing ? "Hide preview" : "Preview"}
+                </button>
+              )}
             </div>
             <ScoreBadge rating={post.rating} />
           </div>
+
+          {previewing && (
+            <div data-preview className="mt-2 cursor-default">
+              <AlbumPreview album={album} />
+            </div>
+          )}
 
           {post.review && <p className="mt-2 break-words text-[0.9375rem] leading-snug">{post.review}</p>}
 

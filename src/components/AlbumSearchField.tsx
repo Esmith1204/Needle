@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type KeyboardEvent } from "react";
-import { searchAlbums, type AlbumSearchResult } from "../lib/itunes";
+import { searchAlbums, withReleaseYear } from "../lib/albumSearch";
+import type { AlbumSearchResult } from "../types";
 
 interface AlbumSearchFieldProps {
   query: string;
@@ -52,9 +53,9 @@ export function AlbumSearchField({
   }, [query, selected]);
 
   const choose = (album: AlbumSearchResult) => {
-    onSelect(album);
     setOpen(false);
     setActive(-1);
+    void withReleaseYear(album).then(onSelect);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -134,6 +135,7 @@ export function AlbumSearchField({
                 <span className="block truncate text-xs text-muted">
                   {album.artist}
                   {album.year ? ` · ${album.year}` : ""}
+                  {album.recordType === "single" ? " · Single" : album.recordType === "ep" ? " · EP" : ""}
                 </span>
               </span>
             </li>
