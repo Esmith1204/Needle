@@ -8,24 +8,24 @@ import { useEnterList } from "../hooks/useEnterList";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
 import { listTimeline } from "../lib/api";
 import { enter, useGSAP } from "../lib/motion";
-import type { FeedScope, PostWithAuthor } from "../types";
+import type { FeedItem, FeedScope } from "../types";
 
 const SCOPES: { value: FeedScope; label: string }[] = [
   { value: "everyone", label: "Everyone" },
-  { value: "friends", label: "Friends" },
+  { value: "following", label: "Following" },
 ];
 
 async function loadFeed(scope: FeedScope, viewerId: string) {
-  return { scope, posts: await listTimeline(scope, viewerId) };
+  return { scope, items: await listTimeline(scope, viewerId) };
 }
 
 export function TimelinePage() {
   const viewer = useCurrentUser();
   const [scope, setScope] = useState<FeedScope>("everyone");
   const { data, error, reload } = useAsync(() => loadFeed(scope, viewer.id), [scope, viewer.id]);
-  useRealtimeRefresh(["ratings", "friendships"], reload);
+  useRealtimeRefresh(["ratings", "follows", "likes", "reposts", "comments"], reload);
   // Ignore the other tab's posts while this one loads.
-  const posts = data?.scope === scope ? data.posts : undefined;
+  const items = data?.scope === scope ? data.items : undefined;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -71,23 +71,23 @@ export function TimelinePage() {
             Try again
           </button>
         </div>
-      ) : !posts ? (
+      ) : !items ? (
         <FeedSkeleton />
-      ) : posts.length > 0 ? (
-        <FeedList key={scope} posts={posts} onDeleted={reload} />
+      ) : items.length > 0 ? (
+        <FeedList key={scope} items={items} onDeleted={reload} />
       ) : (
         <div className="px-6 py-12 text-center">
           <p className="text-lg font-extrabold">Nothing here yet.</p>
           <p className="mt-1 text-sm text-muted">
-            {scope === "friends"
-              ? "Add friends to see their ratings here."
+            {scope === "following"
+              ? "Follow people to see their ratings here."
               : "Be the first to rate something."}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link to="/rate" className="btn btn-primary">
               Rate an album
             </Link>
-            {scope === "friends" && (
+            {scope === "following" && (
               <Link to="/discover" className="btn btn-outline">
                 Find people
               </Link>
@@ -99,15 +99,15 @@ export function TimelinePage() {
   );
 }
 
-function FeedList({ posts, onDeleted }: { posts: PostWithAuthor[]; onDeleted: () => void }) {
+function FeedList({ items, onDeleted }: { items: FeedItem[]; onDeleted: () => void }) {
   const list = useRef<HTMLOListElement>(null);
-  useEnterList(list, posts.map((post) => post.id));
+  useEnterList(list, items.map(({ post }) => post.id));
 
   return (
     <ol ref={list}>
-      {posts.map((post) => (
+      {items.map(({ post, repostedBy }) => (
         <li key={post.id} data-enter-id={post.id}>
-          <PostCard post={post} onDeleted={onDeleted} />
+          <PostCard post={post} repostedBy={repostedBy} onDeleted={onDeleted} />
         </li>
       ))}
     </ol>

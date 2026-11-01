@@ -10,6 +10,7 @@ export interface Profile {
   handle: string;
   displayName: string;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   bio: string;
 }
 
@@ -40,6 +41,57 @@ export interface Post {
 
 export interface PostWithAuthor extends Post {
   author: Profile;
+  likeCount: number;
+  repostCount: number;
+  commentCount: number;
+  likedByViewer: boolean;
+  repostedByViewer: boolean;
+}
+
+/** A post in a feed. `repostedBy` is set when it's there because someone reposted it. */
+export interface FeedItem {
+  post: PostWithAuthor;
+  repostedBy: Profile | null;
+}
+
+export interface PostComment {
+  id: string;
+  ratingId: string;
+  author: Profile;
+  /** At most 280 characters. */
+  body: string;
+  createdAt: string;
+}
+
+export interface AlbumList {
+  id: string;
+  ownerId: string;
+  title: string;
+  /** At most 300 characters. Empty string when the user skipped it. */
+  description: string;
+  /** In the order they were added. */
+  albums: Album[];
+}
+
+export interface AlbumListWithOwner extends AlbumList {
+  owner: Profile;
+}
+
+export interface AlbumListInput {
+  title: string;
+  description: string;
+  albums: Album[];
+}
+
+/** Which of a profile's two images: its picture or its banner. */
+export type ProfileImageKind = "avatar" | "banner";
+
+/** The part of an image to keep, in the image's own pixels. */
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface NewPostInput {
@@ -68,7 +120,7 @@ export interface TotpEnrollment {
   secret: string;
 }
 
-export type FeedScope = "everyone" | "friends";
+export type FeedScope = "everyone" | "following";
 
 export interface TopAlbum {
   album: Album;

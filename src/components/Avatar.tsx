@@ -1,4 +1,5 @@
 import type { Profile } from "../types";
+import { ProfileImage } from "./ProfileImage";
 
 // Gradients around the brand colors, dark enough for white initials; picked deterministically per user.
 const TONES = [
@@ -31,9 +32,8 @@ export function Avatar({ profile, size = 40, className = "" }: AvatarProps) {
   const style = { width: size, height: size };
   if (profile.avatarUrl) {
     return (
-      <img
+      <ProfileImage
         src={profile.avatarUrl}
-        alt=""
         style={style}
         className={`shrink-0 rounded-full border border-line object-cover ${className}`}
       />

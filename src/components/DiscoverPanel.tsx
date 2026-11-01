@@ -3,18 +3,18 @@ import { Link } from "react-router";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
-import { listFriends, listTopAlbums, searchProfiles, setFollowing } from "../lib/api";
-import { enter, pop, useGSAP } from "../lib/motion";
-import type { Profile, TopAlbum } from "../types";
+import { listFollowing, listTopAlbums, searchProfiles } from "../lib/api";
+import { enter, useGSAP } from "../lib/motion";
+import type { TopAlbum } from "../types";
 import { AlbumCover, CoverDescription } from "./AlbumCover";
-import { Avatar } from "./Avatar";
-import { CheckIcon, PlusIcon, SearchIcon } from "./Icons";
+import { SearchIcon } from "./Icons";
+import { PersonRow } from "./PersonRow";
 import { ScoreBadge } from "./ScoreBadge";
 
 const COMPACT_PEOPLE = 4;
 
 /**
- * Search for people, people to add, and popular albums. `compact` is the short
+ * Search for people, people to follow, and popular albums. `compact` is the short
  * version shown in the right column; the /discover page shows the full lists.
  */
 export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
@@ -22,31 +22,31 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
-  // People added from this list stay visible, so the row doesn't vanish on click.
-  const [addedHere, setAddedHere] = useState<string[]>([]);
+  // People followed from this list stay visible, so the row doesn't vanish on click.
+  const [followedHere, setFollowedHere] = useState<string[]>([]);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(query), 250);
     return () => window.clearTimeout(timer);
   }, [query]);
 
   const results = useAsync(() => searchProfiles(debounced), [debounced]);
-  const friends = useAsync(() => listFriends(viewer.id), [viewer.id]);
+  const following = useAsync(() => listFollowing(viewer.id), [viewer.id]);
   const albums = useAsync(() => listTopAlbums(compact ? 5 : 10), [compact]);
-  useRealtimeRefresh(["ratings", "profiles", "friendships"], () => {
+  useRealtimeRefresh(["ratings", "profiles", "follows"], () => {
     results.reload();
-    friends.reload();
+    following.reload();
     albums.reload();
   });
 
   useGSAP(() => enter("[data-discover-section]", { stagger: 0.06 }), { scope: root });
 
   const searching = debounced !== "";
-  const friendIds = new Set(friends.data?.map((f) => f.id));
+  const followingIds = new Set(following.data?.map((f) => f.id));
   const people = results.data
     ?.filter((p) => p.id !== viewer.id)
-    .filter((p) => searching || !friendIds.has(p.id) || addedHere.includes(p.id));
+    .filter((p) => searching || !followingIds.has(p.id) || followedHere.includes(p.id));
   const shownPeople = compact ? people?.slice(0, COMPACT_PEOPLE) : people;
-  const peopleError = results.error ?? friends.error;
+  const peopleError = results.error ?? following.error;
 
   return (
     <div ref={root} className="flex flex-col gap-3">
@@ -66,18 +66,18 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
         />
       </div>
 
-      <Section title={searching ? "People" : "People to add"}>
+      <Section title={searching ? "People" : "People to follow"}>
         {peopleError ? (
           <Note danger>{peopleError.message}</Note>
-        ) : !shownPeople || !friends.data ? (
+        ) : !shownPeople || !following.data ? (
           <Note>Loading…</Note>
         ) : shownPeople.length === 0 ? (
           <Note>
             {searching
               ? `No one matches “${debounced}”.`
-              : friendIds.size > 0
-                ? "You've added everyone here so far."
-                : "No one else has joined yet. Share the site with a friend!"}
+              : followingIds.size > 0
+                ? "You're following everyone here so far."
+                : "No one else has joined yet. Share the site to get things going!"}
           </Note>
         ) : (
           <ul>
@@ -86,11 +86,11 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
                 key={person.id}
                 person={person}
                 viewerId={viewer.id}
-                isFriend={friendIds.has(person.id)}
+                following={followingIds.has(person.id)}
                 showBio={!compact}
                 onChange={() => {
-                  setAddedHere((ids) => [...ids, person.id]);
-                  friends.reload();
+                  setFollowedHere((ids) => [...ids, person.id]);
+                  following.reload();
                 }}
               />
             ))}
@@ -151,62 +151,6 @@ function AlbumRow({ entry }: { entry: TopAlbum }) {
         <CoverDescription album={album} />
       </span>
       <ScoreBadge rating={averageRating} size="sm" />
-    </li>
-  );
-}
-
-interface PersonRowProps {
-  person: Profile;
-  viewerId: string;
-  isFriend: boolean;
-  showBio: boolean;
-  onChange: () => void;
-}
-
-function PersonRow({ person, viewerId, isFriend, showBio, onChange }: PersonRowProps) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const button = useRef<HTMLButtonElement>(null);
-
-  const toggle = async () => {
-    setPending(true);
-    setError(null);
-    try {
-      await setFollowing(viewerId, person.id, !isFriend);
-      pop(button.current);
-      onChange();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <li className="flex items-center gap-2.5 px-4 py-2">
-      <Link to={`/u/${person.handle}`} className="group flex min-w-0 flex-1 items-center gap-2.5">
-        <Avatar profile={person} size={36} />
-        <span className="min-w-0 leading-tight">
-          <span className="block truncate text-sm font-bold group-hover:underline">{person.displayName}</span>
-          <span className="block truncate text-xs text-muted">@{person.handle}</span>
-          {showBio && person.bio && <span className="mt-0.5 block truncate text-xs">{person.bio}</span>}
-        </span>
-      </Link>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <button
-          ref={button}
-          type="button"
-          onClick={toggle}
-          disabled={pending}
-          aria-pressed={isFriend}
-          aria-label={`${isFriend ? "Remove" : "Add"} ${person.displayName} as a friend`}
-          className={`btn h-8 px-3 text-xs ${isFriend ? "btn-outline" : "btn-primary"}`}
-        >
-          {isFriend ? <CheckIcon size={13} strokeWidth={2.4} /> : <PlusIcon size={13} strokeWidth={2.4} />}
-          {isFriend ? "Friends" : "Add"}
-        </button>
-        {error && <p className="text-xs text-danger">{error}</p>}
-      </div>
     </li>
   );
 }

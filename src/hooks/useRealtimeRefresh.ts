@@ -1,12 +1,20 @@
 import { useEffect, useId, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
-type Table = "ratings" | "friendships" | "profiles";
+type Table =
+  | "ratings"
+  | "follows"
+  | "profiles"
+  | "likes"
+  | "reposts"
+  | "comments"
+  | "album_lists"
+  | "album_list_items";
 
 /**
  * Calls `onChange` (debounced) whenever a row in any of `tables` is inserted,
  * updated, or deleted, using Supabase Realtime. Requires the tables to be in the
- * `supabase_realtime` publication (done in migration 002).
+ * `supabase_realtime` publication (done in migrations 002 and 005).
  */
 export function useRealtimeRefresh(tables: Table[], onChange: () => void) {
   const channelId = useId();

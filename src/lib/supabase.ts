@@ -83,3 +83,6 @@ export async function googleSignInEnabled(): Promise<boolean> {
 
 /** Storage bucket for user-uploaded album covers (see supabase/schema.sql). */
 export const COVER_BUCKET = "album-covers";
+
+/** Storage bucket for uploaded profile pictures and banners (see migration 005). */
+export const PROFILE_MEDIA_BUCKET = "profile-media";

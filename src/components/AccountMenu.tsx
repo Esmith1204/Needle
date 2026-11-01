@@ -4,7 +4,7 @@ import { useCurrentUser } from "../context/SessionContext";
 import { signOut } from "../lib/api";
 import { enter, useGSAP } from "../lib/motion";
 import { Avatar } from "./Avatar";
-import { AccessibilityIcon, LogOutIcon, ShieldIcon, UserIcon } from "./Icons";
+import { AccessibilityIcon, LockIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "./Icons";
 
 const ITEM_CLASS =
   "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-field focus-visible:bg-field focus-visible:outline-none disabled:opacity-60";
@@ -16,7 +16,7 @@ interface AccountMenuProps {
   showIdentity?: boolean;
 }
 
-/** The dropdown behind the profile picture: profile, accessibility, security, and sign out. */
+/** The dropdown behind the profile picture: accessibility, settings, security, privacy, and sign out. */
 export function AccountMenu({ placement, showIdentity }: AccountMenuProps) {
   const user = useCurrentUser();
   const [open, setOpen] = useState(false);
@@ -114,17 +114,21 @@ export function AccountMenu({ placement, showIdentity }: AccountMenuProps) {
             placement === "above" ? "bottom-full left-0 mb-2" : "right-0 top-full mt-2"
           }`}
         >
-          <Link to={`/u/${user.handle}`} role="menuitem" onClick={() => setOpen(false)} className={ITEM_CLASS}>
-            <UserIcon size={18} className="shrink-0 text-muted" />
-            Your profile
-          </Link>
           <Link to="/settings/accessibility" role="menuitem" onClick={() => setOpen(false)} className={ITEM_CLASS}>
             <AccessibilityIcon size={18} className="shrink-0 text-muted" />
             Accessibility options
           </Link>
+          <Link to="/settings" role="menuitem" onClick={() => setOpen(false)} className={ITEM_CLASS}>
+            <SettingsIcon size={18} className="shrink-0 text-muted" />
+            Settings
+          </Link>
           <Link to="/settings/security" role="menuitem" onClick={() => setOpen(false)} className={ITEM_CLASS}>
             <ShieldIcon size={18} className="shrink-0 text-muted" />
-            Settings, security, and privacy
+            Security
+          </Link>
+          <Link to="/settings/privacy" role="menuitem" onClick={() => setOpen(false)} className={ITEM_CLASS}>
+            <LockIcon size={18} className="shrink-0 text-muted" />
+            Privacy
           </Link>
           <div role="separator" className="my-1 border-t border-line" />
           <button type="button" role="menuitem" onClick={onSignOut} disabled={signingOut} className={ITEM_CLASS}>

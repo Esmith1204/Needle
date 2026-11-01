@@ -42,7 +42,7 @@ export function LoginPage() {
           you&rsquo;re hearing.
         </>
       }
-      subtitle="Log albums on a 10-point scale, rank them against each other, and see what your friends are spinning."
+      subtitle="Log albums on a 10-point scale, rank them against each other, and see what the people you follow are spinning."
     >
       <form noValidate onSubmit={onSubmit}>
         <h2 className="text-2xl font-extrabold leading-tight">Sign in</h2>

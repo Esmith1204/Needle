@@ -6,17 +6,12 @@ import { ComparisonRater } from "../components/ComparisonRater";
 import { Field } from "../components/FormField";
 import { UploadIcon } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
+import { ScoreInput } from "../components/ScoreInput";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
 import { listRatingsByUser, saveRating } from "../lib/api";
 import { COMPARISON_UNLOCK } from "../lib/compareRank";
-import {
-  fileToCoverDataUrl,
-  formatRating,
-  parseRating,
-  RATING_PARTIAL_PATTERN,
-  REVIEW_MAX_LENGTH,
-} from "../lib/format";
+import { fileToCoverDataUrl, parseRating, REVIEW_MAX_LENGTH } from "../lib/format";
 import type { AlbumSearchResult } from "../lib/itunes";
 import type { Album, RatingMethod } from "../types";
 
@@ -31,7 +26,7 @@ export function CreateRatingPage() {
   const user = useCurrentUser();
   const fileInput = useRef<HTMLInputElement>(null);
   // The user's past ratings: the comparison pool and the unlock count.
-  const past = useAsync(() => listRatingsByUser(user.id), [user.id]);
+  const past = useAsync(() => listRatingsByUser(user.id, user.id), [user.id]);
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AlbumSearchResult | null>(null);
@@ -71,15 +66,6 @@ export function CreateRatingPage() {
     if (review.length > REVIEW_MAX_LENGTH) e.review = `Keep it to ${REVIEW_MAX_LENGTH} characters.`;
     return e;
   }
-
-  const onRatingChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const next = e.target.value.replace(",", ".");
-    if (RATING_PARTIAL_PATTERN.test(next)) setRatingText(next);
-  };
-
-  const onRatingBlur = () => {
-    if (rating !== null) setRatingText(formatRating(rating));
-  };
 
   const onUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -196,36 +182,13 @@ export function CreateRatingPage() {
               </div>
 
               {method === "manual" ? (
-                <div className="flex items-center gap-3">
-                  <div className="relative w-36 shrink-0">
-                    <input
-                      id="rating"
-                      type="text"
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="Score"
-                      value={ratingText}
-                      onChange={onRatingChange}
-                      onBlur={onRatingBlur}
-                      aria-invalid={Boolean(visibleErrors.rating) || undefined}
-                      aria-describedby={describedBy}
-                      className="field pr-11"
-                    />
-                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-muted">
-                      / 10
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={10}
-                    step={0.1}
-                    value={rating ?? 0}
-                    onChange={(e) => setRatingText(formatRating(Number(e.target.value)))}
-                    aria-label="Rating slider"
-                    className="min-w-0 flex-1 accent-accent"
-                  />
-                </div>
+                <ScoreInput
+                  id="rating"
+                  value={ratingText}
+                  onChange={setRatingText}
+                  invalid={Boolean(visibleErrors.rating)}
+                  describedBy={describedBy}
+                />
               ) : past.loading && !past.data ? (
                 <p className="text-sm text-muted">Loading your ratings…</p>
               ) : past.error ? (

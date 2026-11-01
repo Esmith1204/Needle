@@ -57,7 +57,7 @@ export function SignUpPage() {
       record.
     </>
   );
-  const subtitle = "Make a profile to log ratings, build your rankings, and add friends.";
+  const subtitle = "Make a profile to log ratings, build your rankings, and follow people.";
 
   if (confirmEmailFor) {
     return (

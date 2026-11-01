@@ -5,22 +5,33 @@ import { Avatar } from "../components/Avatar";
 import { CheckIcon, GridIcon, ListIcon, PlusIcon } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
 import { PostCard } from "../components/PostCard";
+import { ProfileImage } from "../components/ProfileImage";
+import { ProfileImagesDialog } from "../components/ProfileImagesDialog";
+import { ProfileLists } from "../components/ProfileLists";
 import { RatingHistogram } from "../components/RatingHistogram";
 import { Tabs } from "../components/Tabs";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
-import { getProfileByHandle, isFollowing, listFriends, listRatingsByUser, setFollowing } from "../lib/api";
+import {
+  getProfileByHandle,
+  isFollowing,
+  listLikesByUser,
+  listRatingsByUser,
+  listRepostsByUser,
+  setFollowing,
+} from "../lib/api";
 import { formatRating } from "../lib/format";
 import { enter, useGSAP } from "../lib/motion";
-import type { PostWithAuthor, Profile, ProfileWithStats } from "../types";
+import type { FeedItem, PostWithAuthor, ProfileWithStats } from "../types";
 
-type ProfileTab = "ratings" | "reviews" | "friends";
+type ProfileTab = "ratings" | "reviews" | "reposts" | "likes";
 
 const TABS: { value: ProfileTab; label: string }[] = [
   { value: "ratings", label: "Ratings" },
   { value: "reviews", label: "Reviews" },
-  { value: "friends", label: "Friends" },
+  { value: "reposts", label: "Reposts" },
+  { value: "likes", label: "Likes" },
 ];
 
 /** /profile — sends the signed-in user to their own page. */
@@ -38,12 +49,11 @@ export function ProfileRoute() {
 async function loadProfile(handle: string, viewerId: string) {
   const profile = await getProfileByHandle(handle);
   if (!profile) return null;
-  const [posts, following, friends] = await Promise.all([
-    listRatingsByUser(profile.id),
+  const [posts, following] = await Promise.all([
+    listRatingsByUser(profile.id, viewerId),
     profile.id === viewerId ? false : isFollowing(viewerId, profile.id),
-    listFriends(profile.id),
   ]);
-  return { profile, posts, following, friends };
+  return { profile, posts, following };
 }
 
 function ProfilePage({ handle }: { handle: string }) {
@@ -51,8 +61,8 @@ function ProfilePage({ handle }: { handle: string }) {
   const { data, loading, error, reload } = useAsync(() => loadProfile(handle, viewer.id), [handle, viewer.id]);
   const [tab, setTab] = useState<ProfileTab>("ratings");
   const panel = useRef<HTMLDivElement>(null);
-  // Counts, friends, and ratings update live as anyone rates or adds friends.
-  useRealtimeRefresh(["ratings", "friendships", "profiles"], reload);
+  // Counts and ratings update live as people rate, react, and follow.
+  useRealtimeRefresh(["ratings", "follows", "profiles", "likes", "reposts", "comments"], reload);
 
   useGSAP(() => enter(panel.current, { y: 4, duration: 0.2 }), { dependencies: [tab] });
 
@@ -66,7 +76,7 @@ function ProfilePage({ handle }: { handle: string }) {
     return <Message title="No listener here." body={`We couldn't find anyone with the handle @${handle}.`} />;
   }
 
-  const { profile, posts, following, friends } = data;
+  const { profile, posts, following } = data;
   const isMe = viewer.id === profile.id;
   const reviews = posts.filter((p) => p.review);
 
@@ -76,7 +86,14 @@ function ProfilePage({ handle }: { handle: string }) {
         title={profile.displayName}
         subtitle={`${profile.ratingCount.toLocaleString()} ${profile.ratingCount === 1 ? "rating" : "ratings"}`}
       />
-      <ProfileHeader profile={profile} viewerId={viewer.id} isMe={isMe} following={following} onFollowChange={reload} />
+      <ProfileHeader
+        profile={profile}
+        viewerId={viewer.id}
+        isMe={isMe}
+        following={following}
+        onFollowChange={reload}
+        onImagesChange={reload}
+      />
       <Tabs label="Profile sections" tabs={TABS} value={tab} onChange={setTab} />
 
       <div ref={panel}>
@@ -95,9 +112,70 @@ function ProfilePage({ handle }: { handle: string }) {
               {isMe ? "You haven't written a review yet." : `${profile.displayName} hasn't written a review yet.`}
             </p>
           ))}
-        {tab === "friends" && <FriendsList friends={friends} isMe={isMe} />}
+        {tab === "reposts" && <RepostsTab profile={profile} isMe={isMe} viewerId={viewer.id} />}
+        {tab === "likes" && <LikesTab profile={profile} isMe={isMe} viewerId={viewer.id} />}
       </div>
     </div>
+  );
+}
+
+interface ActivityTabProps {
+  profile: ProfileWithStats;
+  isMe: boolean;
+  viewerId: string;
+}
+
+function RepostsTab({ profile, isMe, viewerId }: ActivityTabProps) {
+  const { data, error, reload } = useAsync(() => listRepostsByUser(profile.id, viewerId), [profile.id, viewerId]);
+  useRealtimeRefresh(["ratings", "likes", "reposts", "comments"], reload);
+  return (
+    <ActivityList
+      items={data}
+      error={error}
+      onDeleted={reload}
+      empty={isMe ? "You haven't reposted anything yet." : `${profile.displayName} hasn't reposted anything yet.`}
+    />
+  );
+}
+
+function LikesTab({ profile, isMe, viewerId }: ActivityTabProps) {
+  const { data, error, reload } = useAsync(() => listLikesByUser(profile.id, viewerId), [profile.id, viewerId]);
+  useRealtimeRefresh(["ratings", "likes", "reposts", "comments"], reload);
+  return (
+    <ActivityList
+      items={data?.map((post) => ({ post, repostedBy: null }))}
+      error={error}
+      onDeleted={reload}
+      empty={isMe ? "You haven't liked anything yet." : `${profile.displayName} hasn't liked anything yet.`}
+    />
+  );
+}
+
+interface ActivityListProps {
+  items: FeedItem[] | undefined;
+  error: Error | null;
+  onDeleted: () => void;
+  empty: string;
+}
+
+function ActivityList({ items, error, onDeleted, empty }: ActivityListProps) {
+  if (error) return <p className="px-6 py-12 text-center text-sm text-danger">{error.message}</p>;
+  if (!items) {
+    return (
+      <div className="animate-pulse p-4" aria-busy="true" aria-label="Loading posts">
+        <div className="h-32 rounded-xl bg-field" />
+      </div>
+    );
+  }
+  if (items.length === 0) return <p className="px-6 py-12 text-center text-sm text-muted">{empty}</p>;
+  return (
+    <ol>
+      {items.map(({ post, repostedBy }) => (
+        <li key={post.id}>
+          <PostCard post={post} repostedBy={repostedBy} onDeleted={onDeleted} />
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -116,24 +194,33 @@ function RatingsTab({ posts, profile, isMe, onDeleted }: RatingsTabProps) {
 
   if (posts.length === 0) {
     return (
-      <div className="px-6 py-12 text-center">
-        <p className="text-lg font-extrabold">No ratings yet.</p>
-        <p className="mt-1 text-sm text-muted">
-          {isMe ? "Rate your first album to start your profile." : `${profile.displayName} hasn't rated anything yet.`}
-        </p>
-        {isMe && (
-          <Link to="/rate" className="btn btn-primary mt-4">
-            Rate an album
-          </Link>
-        )}
-      </div>
+      <>
+        <div className="border-b border-line px-6 py-12 text-center">
+          <p className="text-lg font-extrabold">No ratings yet.</p>
+          <p className="mt-1 text-sm text-muted">
+            {isMe ? "Rate your first album to start your profile." : `${profile.displayName} hasn't rated anything yet.`}
+          </p>
+          {isMe && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link to="/rate" className="btn btn-primary">
+                Rate an album
+              </Link>
+              <CreateListLink />
+            </div>
+          )}
+        </div>
+        <ProfileLists userId={profile.id} />
+      </>
     );
   }
 
   return (
     <>
       <div className={`grid gap-5 border-b border-line p-4 ${showHighestRated ? "sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" : ""}`}>
-        <RatingHistogram ratings={posts.map((p) => p.rating)} />
+        <div>
+          <RatingHistogram ratings={posts.map((p) => p.rating)} />
+          {isMe && <CreateListLink className="mt-3 h-8 w-full text-xs" />}
+        </div>
         {showHighestRated && (
           <section aria-labelledby="top-rated">
             <h2 id="top-rated" className="text-sm font-extrabold">
@@ -149,6 +236,8 @@ function RatingsTab({ posts, profile, isMe, onDeleted }: RatingsTabProps) {
           </section>
         )}
       </div>
+
+      <ProfileLists userId={profile.id} />
 
       <section aria-labelledby="all-ratings">
         <div className="flex items-center justify-between px-4 pb-1 pt-3">
@@ -187,24 +276,35 @@ function RatingsTab({ posts, profile, isMe, onDeleted }: RatingsTabProps) {
   );
 }
 
+function CreateListLink({ className = "" }: { className?: string }) {
+  return (
+    <Link to="/lists/new" className={`btn btn-outline ${className}`}>
+      <PlusIcon size={14} strokeWidth={2.4} />
+      Create list
+    </Link>
+  );
+}
+
 interface ProfileHeaderProps {
   profile: ProfileWithStats;
   viewerId: string;
   isMe: boolean;
   following: boolean;
   onFollowChange: () => void;
+  onImagesChange: () => void;
 }
 
-function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onFollowChange }: ProfileHeaderProps) {
+function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onFollowChange, onImagesChange }: ProfileHeaderProps) {
   const [following, setFollowingState] = useState(savedFollowing);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingImages, setEditingImages] = useState(false);
   useEffect(() => setFollowingState(savedFollowing), [savedFollowing]);
 
   // Show the change immediately; the reload then confirms it from the database.
   const followerCount = profile.followerCount + (following === savedFollowing ? 0 : following ? 1 : -1);
 
-  const toggleFriend = async () => {
+  const toggleFollow = async () => {
     const next = !following;
     setPending(true);
     setError(null);
@@ -222,27 +322,33 @@ function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onF
 
   return (
     <header className="pb-3">
-      <div aria-hidden="true" className="h-20 bg-brand" />
+      <div aria-hidden="true" className="aspect-[3/1] overflow-hidden bg-brand">
+        {profile.bannerUrl && <ProfileImage src={profile.bannerUrl} className="h-full w-full object-cover" />}
+      </div>
       <div className="px-4">
         <div className="flex items-start justify-between gap-3">
-          <Avatar profile={profile} size={72} className="-mt-9 ring-4 ring-paper" />
+          <Avatar profile={profile} size={72} className="relative -mt-9 ring-4 ring-paper" />
           <div className="mt-2.5 flex flex-col items-end gap-1">
-            {isMe ? null : following ? (
+            {isMe ? (
+              <button type="button" onClick={() => setEditingImages(true)} className="btn btn-outline">
+                Edit picture and banner
+              </button>
+            ) : following ? (
               <button
                 type="button"
-                onClick={toggleFriend}
+                onClick={toggleFollow}
                 disabled={pending}
                 aria-pressed="true"
                 className="group btn btn-outline hover:border-danger hover:bg-transparent hover:text-danger"
               >
                 <CheckIcon size={14} strokeWidth={2.4} className="group-hover:hidden" />
-                <span className="group-hover:hidden">Friends</span>
-                <span className="hidden group-hover:inline">Remove friend</span>
+                <span className="group-hover:hidden">Following</span>
+                <span className="hidden group-hover:inline">Unfollow</span>
               </button>
             ) : (
-              <button type="button" onClick={toggleFriend} disabled={pending} aria-pressed="false" className="btn btn-primary">
+              <button type="button" onClick={toggleFollow} disabled={pending} aria-pressed="false" className="btn btn-primary">
                 <PlusIcon size={14} strokeWidth={2.4} />
-                Add friend
+                Follow
               </button>
             )}
             {error && <p className="text-xs text-danger">{error}</p>}
@@ -253,72 +359,56 @@ function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onF
         <p className="text-sm text-muted">@{profile.handle}</p>
         {profile.bio && <p className="mt-1.5 text-sm leading-snug">{profile.bio}</p>}
 
-        <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Stat label="Ratings" value={profile.ratingCount} />
-          <Stat label="Followers" value={followerCount} />
-          <Stat label="Following" value={profile.followingCount} />
-        </dl>
+          {/* Follower and following lists are private, so only your own open. */}
+          <Stat label={followerCount === 1 ? "Follower" : "Followers"} value={followerCount} to={isMe ? "/followers" : undefined} />
+          <Stat label="Following" value={profile.followingCount} to={isMe ? "/following" : undefined} />
+        </div>
       </div>
+      {editingImages && (
+        <ProfileImagesDialog
+          onClose={() => {
+            setEditingImages(false);
+            onImagesChange();
+          }}
+        />
+      )}
     </header>
   );
 }
 
-function FriendsList({ friends, isMe }: { friends: Profile[]; isMe: boolean }) {
-  if (friends.length === 0) {
-    return (
-      <p className="px-6 py-12 text-center text-sm text-muted">
-        No friends yet.
-        {isMe && (
-          <>
-            {" "}
-            <Link to="/discover" className="font-semibold text-accent hover:underline">
-              Find people
-            </Link>
-          </>
-        )}
-      </p>
-    );
-  }
-  return (
-    <ul>
-      {friends.map((friend) => (
-        <li key={friend.id} className="border-b border-line">
-          <Link to={`/u/${friend.handle}`} className="group flex items-center gap-3 px-4 py-2.5 hover:bg-tint/[0.03]">
-            <Avatar profile={friend} size={40} />
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-bold group-hover:underline">{friend.displayName}</span>
-              <span className="block truncate text-xs text-muted">@{friend.handle}</span>
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+function Stat({ label, value, to }: { label: string; value: number; to?: string }) {
+  const content = (
+    <>
+      <span className="font-bold tabular-nums">{value.toLocaleString()}</span> <span className="text-muted">{label}</span>
+    </>
   );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex flex-row-reverse gap-1">
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-bold tabular-nums">{value.toLocaleString()}</dd>
-    </div>
+  return to ? (
+    <Link to={to} className="hover:underline">
+      {content}
+    </Link>
+  ) : (
+    <span>{content}</span>
   );
 }
 
 function RatingTile({ post, showTitle }: { post: PostWithAuthor; showTitle?: boolean }) {
   return (
-    <figure title={post.review || undefined}>
-      <AlbumCover
-        src={post.album.coverUrl}
-        title={post.album.title}
-        className="rounded-lg transition-transform hover:-translate-y-0.5"
-      />
-      <figcaption className="mt-1 text-xs">
-        <span className="font-bold tabular-nums">{formatRating(post.rating)}</span>
-        {showTitle && <span className="block truncate text-muted">{post.album.title}</span>}
-        <CoverDescription album={post.album} />
-      </figcaption>
-    </figure>
+    <Link to={`/post/${post.id}`} className="block rounded-lg">
+      <figure title={post.review || undefined}>
+        <AlbumCover
+          src={post.album.coverUrl}
+          title={post.album.title}
+          className="rounded-lg transition-transform hover:-translate-y-0.5"
+        />
+        <figcaption className="mt-1 text-xs">
+          <span className="font-bold tabular-nums">{formatRating(post.rating)}</span>
+          {showTitle && <span className="block truncate text-muted">{post.album.title}</span>}
+          <CoverDescription album={post.album} />
+        </figcaption>
+      </figure>
+    </Link>
   );
 }
 
@@ -361,7 +451,7 @@ function Message({ title, body }: { title: string; body: string }) {
 function ProfileSkeleton() {
   return (
     <div className="animate-pulse" aria-busy="true" aria-label="Loading profile">
-      <div className="h-20 bg-field" />
+      <div className="aspect-[3/1] bg-field" />
       <div className="px-4">
         <div className="-mt-9 size-[72px] rounded-full bg-field ring-4 ring-paper" />
         <div className="mt-3 h-5 w-48 rounded-full bg-field" />

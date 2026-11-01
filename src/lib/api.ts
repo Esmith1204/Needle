@@ -2,16 +2,25 @@ import type { AuthError, PostgrestError } from "@supabase/supabase-js";
 import type { Database } from "../types/database";
 import type {
   AccountSecurity,
+  AlbumList,
+  AlbumListInput,
+  AlbumListWithOwner,
+  CropRect,
+  FeedItem,
   FeedScope,
   NewPostInput,
+  PostComment,
   PostWithAuthor,
   Profile,
+  ProfileImageKind,
   ProfileWithStats,
   Post,
+  RatingMethod,
   TopAlbum,
   TotpEnrollment,
 } from "../types";
-import { googleSignInEnabled, missingSupabaseEnv, supabase } from "./supabase";
+import { cropImageFile } from "./format";
+import { googleSignInEnabled, missingSupabaseEnv, PROFILE_MEDIA_BUCKET, supabase } from "./supabase";
 
 // The single data-access module the UI talks to. Every function is async,
 // talks to Supabase, and returns app-level types (see src/types/index.ts).
@@ -19,8 +28,11 @@ import { googleSignInEnabled, missingSupabaseEnv, supabase } from "./supabase";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type RatingRow = Database["public"]["Tables"]["ratings"]["Row"];
+type AlbumListRow = Database["public"]["Tables"]["album_lists"]["Row"];
+type AlbumListItemRow = Database["public"]["Tables"]["album_list_items"]["Row"];
 
 const TIMELINE_LIMIT = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function db() {
   if (!supabase) {
@@ -41,6 +53,7 @@ const toProfile = (row: ProfileRow): Profile => ({
   handle: row.handle,
   displayName: row.display_name,
   avatarUrl: row.avatar_url,
+  bannerUrl: row.banner_url,
   bio: row.bio,
 });
 
@@ -60,11 +73,44 @@ const toPost = (row: RatingRow): Post => ({
   createdAt: row.created_at,
 });
 
-const RATING_WITH_AUTHOR = "*, author:profiles!ratings_user_id_fkey(*)";
+// Every query using this also filters viewer_like and viewer_repost down to the viewer's own row.
+const POST_FIELDS =
+  "*, author:profiles!ratings_user_id_fkey(*), likes(count), reposts(count), comments(count), viewer_like:likes(user_id), viewer_repost:reposts(user_id)";
 
-function toPostWithAuthor(row: RatingRow & { author: ProfileRow | null }): PostWithAuthor | null {
-  return row.author ? { ...toPost(row), author: toProfile(row.author) } : null;
+type PostRow = RatingRow & {
+  author: ProfileRow | null;
+  likes: { count: number }[];
+  reposts: { count: number }[];
+  comments: { count: number }[];
+  viewer_like: { user_id: string }[];
+  viewer_repost: { user_id: string }[];
+};
+
+function toPostWithAuthor(row: PostRow): PostWithAuthor | null {
+  if (!row.author) return null;
+  return {
+    ...toPost(row),
+    author: toProfile(row.author),
+    likeCount: row.likes[0]?.count ?? 0,
+    repostCount: row.reposts[0]?.count ?? 0,
+    commentCount: row.comments[0]?.count ?? 0,
+    likedByViewer: row.viewer_like.length > 0,
+    repostedByViewer: row.viewer_repost.length > 0,
+  };
 }
+
+const toAlbumList = (row: AlbumListRow & { items: AlbumListItemRow[] }): AlbumList => ({
+  id: row.id,
+  ownerId: row.user_id,
+  title: row.title,
+  description: row.description,
+  albums: row.items.map((item) => ({
+    title: item.album_title,
+    artist: item.album_artist,
+    year: item.album_year,
+    coverUrl: item.cover_url,
+  })),
+});
 
 // ─── Auth ───────────────────────────────────────────────────────────────────
 
@@ -324,8 +370,12 @@ export async function disconnectGoogle(): Promise<void> {
 /** Permanently deletes the account and everything it owns. See delete_my_account in migration 003. */
 export async function deleteAccount(): Promise<void> {
   const client = db();
+  const { data: session } = await client.auth.getSession();
   const { error } = await client.rpc("delete_my_account");
   if (error) securityFail(error);
+  // Uploads aren't tied to the account's rows. This session's token still works for them,
+  // and a failure here shouldn't look like the account wasn't deleted.
+  if (session.session) await removeUploads(session.session.user.id).catch(() => undefined);
   // The account is gone, so this only clears the session stored in this browser.
   await client.auth.signOut({ scope: "local" });
 }
@@ -356,7 +406,48 @@ export async function getProfileById(id: string): Promise<Profile | null> {
   return data ? toProfile(data) : null;
 }
 
-// ─── Profiles & friends ─────────────────────────────────────────────────────
+// ─── Profile pictures and banners ───────────────────────────────────────────
+
+const IMAGE_MAX_WIDTHS: Record<ProfileImageKind, number> = { avatar: 400, banner: 1500 };
+
+/** Removes this user's uploaded files, keeping `keepPath`. Only `kind`'s files when it's given. */
+async function removeUploads(userId: string, kind?: ProfileImageKind, keepPath?: string): Promise<void> {
+  const bucket = db().storage.from(PROFILE_MEDIA_BUCKET);
+  const { data, error } = await bucket.list(userId, { limit: 100 });
+  if (error) throw error;
+  const paths = data
+    .filter((file) => !kind || file.name.startsWith(`${kind}-`))
+    .map((file) => `${userId}/${file.name}`)
+    .filter((path) => path !== keepPath);
+  if (paths.length > 0) await bucket.remove(paths);
+}
+
+/** Points the profile at an upload, or back to its default with null. */
+export async function setProfileImage(
+  userId: string,
+  kind: ProfileImageKind,
+  url: string | null,
+  uploadedPath?: string,
+): Promise<void> {
+  const { error } = await db()
+    .from("profiles")
+    .update(kind === "avatar" ? { avatar_url: url } : { banner_url: url })
+    .eq("id", userId);
+  if (error) fail(error);
+  // The replaced file is only clutter now, so failing to remove it isn't worth reporting.
+  await removeUploads(userId, kind, uploadedPath).catch(() => undefined);
+}
+
+export async function uploadProfileImage(userId: string, kind: ProfileImageKind, file: File, crop: CropRect): Promise<void> {
+  const blob = await cropImageFile(file, crop, IMAGE_MAX_WIDTHS[kind]);
+  const path = `${userId}/${kind}-${Date.now()}.${blob.type === "image/gif" ? "gif" : "jpg"}`;
+  const bucket = db().storage.from(PROFILE_MEDIA_BUCKET);
+  const { error } = await bucket.upload(path, blob, { contentType: blob.type, cacheControl: "31536000" });
+  if (error) throw new Error(error.message);
+  await setProfileImage(userId, kind, bucket.getPublicUrl(path).data.publicUrl, path);
+}
+
+// ─── Profiles & followers ───────────────────────────────────────────────────
 
 export async function getProfileByHandle(handle: string): Promise<ProfileWithStats | null> {
   const client = db();
@@ -368,11 +459,7 @@ export async function getProfileByHandle(handle: string): Promise<ProfileWithSta
   if (error) fail(error);
   if (!row) return null;
 
-  const { data: stats, error: statsError } = await client
-    .from("profile_stats")
-    .select("*")
-    .eq("id", row.id)
-    .maybeSingle();
+  const { data: stats, error: statsError } = await client.rpc("profile_stats", { target: row.id });
   if (statsError) fail(statsError);
 
   return {
@@ -383,20 +470,31 @@ export async function getProfileByHandle(handle: string): Promise<ProfileWithSta
   };
 }
 
-/** People `profileId` has added as friends, most recent first. */
-export async function listFriends(profileId: string): Promise<Profile[]> {
+/** People `profileId` follows, most recent first. The database only shows this to that person. */
+export async function listFollowing(profileId: string): Promise<Profile[]> {
   const { data, error } = await db()
-    .from("friendships")
-    .select("created_at, friend:profiles!friendships_following_id_fkey(*)")
+    .from("follows")
+    .select("created_at, person:profiles!follows_following_id_fkey(*)")
     .eq("follower_id", profileId)
     .order("created_at", { ascending: false });
   if (error) fail(error);
-  return data.flatMap((r) => (r.friend ? [toProfile(r.friend)] : []));
+  return data.flatMap((r) => (r.person ? [toProfile(r.person)] : []));
+}
+
+/** People following `profileId`, most recent first. The database only shows this to that person. */
+export async function listFollowers(profileId: string): Promise<Profile[]> {
+  const { data, error } = await db()
+    .from("follows")
+    .select("created_at, person:profiles!follows_follower_id_fkey(*)")
+    .eq("following_id", profileId)
+    .order("created_at", { ascending: false });
+  if (error) fail(error);
+  return data.flatMap((r) => (r.person ? [toProfile(r.person)] : []));
 }
 
 export async function isFollowing(viewerId: string, profileId: string): Promise<boolean> {
   const { count, error } = await db()
-    .from("friendships")
+    .from("follows")
     .select("*", { count: "exact", head: true })
     .eq("follower_id", viewerId)
     .eq("following_id", profileId);
@@ -405,14 +503,14 @@ export async function isFollowing(viewerId: string, profileId: string): Promise<
 }
 
 export async function setFollowing(viewerId: string, profileId: string, follow: boolean): Promise<void> {
-  if (viewerId === profileId) throw new Error("You can't add yourself as a friend.");
+  if (viewerId === profileId) throw new Error("You can't follow yourself.");
   const client = db();
   const { error } = follow
-    ? await client.from("friendships").upsert(
+    ? await client.from("follows").upsert(
         { follower_id: viewerId, following_id: profileId },
         { onConflict: "follower_id,following_id", ignoreDuplicates: true },
       )
-    : await client.from("friendships").delete().eq("follower_id", viewerId).eq("following_id", profileId);
+    : await client.from("follows").delete().eq("follower_id", viewerId).eq("following_id", profileId);
   if (error) fail(error);
 }
 
@@ -429,26 +527,72 @@ export async function searchProfiles(query: string): Promise<Profile[]> {
 
 // ─── Ratings ────────────────────────────────────────────────────────────────
 
-export async function listTimeline(scope: FeedScope, viewerId: string): Promise<PostWithAuthor[]> {
+const REPOST_FIELDS = `created_at, reposter:profiles!reposts_user_id_fkey(*), post:ratings!reposts_rating_id_fkey(${POST_FIELDS})` as const;
+
+/**
+ * New ratings and reposts, newest first. A post appears once, at its latest repost.
+ * The viewer's own reposts are left out, so reposting doesn't move a post out from under them.
+ */
+export async function listTimeline(scope: FeedScope, viewerId: string): Promise<FeedItem[]> {
   const client = db();
-  let request = client
+  let ratingsRequest = client
     .from("ratings")
-    .select(RATING_WITH_AUTHOR)
+    .select(POST_FIELDS)
+    .eq("viewer_like.user_id", viewerId)
+    .eq("viewer_repost.user_id", viewerId)
+    .order("created_at", { ascending: false })
+    .limit(TIMELINE_LIMIT);
+  let repostsRequest = client
+    .from("reposts")
+    .select(REPOST_FIELDS)
+    .eq("post.viewer_like.user_id", viewerId)
+    .eq("post.viewer_repost.user_id", viewerId)
+    .neq("user_id", viewerId)
     .order("created_at", { ascending: false })
     .limit(TIMELINE_LIMIT);
 
-  if (scope === "friends") {
-    const { data: friends, error } = await client
-      .from("friendships")
+  if (scope === "following") {
+    const { data: following, error } = await client
+      .from("follows")
       .select("following_id")
       .eq("follower_id", viewerId);
     if (error) fail(error);
-    request = request.in("user_id", [viewerId, ...friends.map((f) => f.following_id)]);
+    const followingIds = following.map((f) => f.following_id);
+    ratingsRequest = ratingsRequest.in("user_id", [viewerId, ...followingIds]);
+    repostsRequest = repostsRequest.in("user_id", followingIds);
   }
 
-  const { data, error } = await request;
+  const [ratings, reposts] = await Promise.all([ratingsRequest, repostsRequest]);
+  if (ratings.error) fail(ratings.error);
+  if (reposts.error) fail(reposts.error);
+
+  const entries = [
+    ...ratings.data.map((row) => ({ at: row.created_at, row: row as PostRow, reposter: null })),
+    ...reposts.data.map((row) => ({ at: row.created_at, row: row.post as PostRow | null, reposter: row.reposter })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+
+  const seen = new Set<string>();
+  const items: FeedItem[] = [];
+  for (const { row, reposter } of entries) {
+    const post = row && toPostWithAuthor(row);
+    if (!post || seen.has(post.id)) continue;
+    seen.add(post.id);
+    items.push({ post, repostedBy: reposter && toProfile(reposter) });
+  }
+  return items.slice(0, TIMELINE_LIMIT);
+}
+
+export async function getPost(ratingId: string, viewerId: string): Promise<PostWithAuthor | null> {
+  if (!UUID_PATTERN.test(ratingId)) return null;
+  const { data, error } = await db()
+    .from("ratings")
+    .select(POST_FIELDS)
+    .eq("id", ratingId)
+    .eq("viewer_like.user_id", viewerId)
+    .eq("viewer_repost.user_id", viewerId)
+    .maybeSingle();
   if (error) fail(error);
-  return data.flatMap((row) => toPostWithAuthor(row) ?? []);
+  return data && toPostWithAuthor(data as PostRow);
 }
 
 /** The most-rated albums among recent ratings; ties go to the higher average. */
@@ -478,14 +622,45 @@ export async function listTopAlbums(limit: number): Promise<TopAlbum[]> {
     .slice(0, limit);
 }
 
-export async function listRatingsByUser(userId: string): Promise<PostWithAuthor[]> {
+export async function listRatingsByUser(userId: string, viewerId: string): Promise<PostWithAuthor[]> {
   const { data, error } = await db()
     .from("ratings")
-    .select(RATING_WITH_AUTHOR)
+    .select(POST_FIELDS)
     .eq("user_id", userId)
+    .eq("viewer_like.user_id", viewerId)
+    .eq("viewer_repost.user_id", viewerId)
     .order("created_at", { ascending: false });
   if (error) fail(error);
-  return data.flatMap((row) => toPostWithAuthor(row) ?? []);
+  return data.flatMap((row) => toPostWithAuthor(row as PostRow) ?? []);
+}
+
+/** What `userId` has reposted, latest repost first. */
+export async function listRepostsByUser(userId: string, viewerId: string): Promise<FeedItem[]> {
+  const { data, error } = await db()
+    .from("reposts")
+    .select(REPOST_FIELDS)
+    .eq("user_id", userId)
+    .eq("post.viewer_like.user_id", viewerId)
+    .eq("post.viewer_repost.user_id", viewerId)
+    .order("created_at", { ascending: false });
+  if (error) fail(error);
+  return data.flatMap((row) => {
+    const post = row.post && toPostWithAuthor(row.post as PostRow);
+    return post ? [{ post, repostedBy: row.reposter && toProfile(row.reposter) }] : [];
+  });
+}
+
+/** What `userId` has liked, latest like first. */
+export async function listLikesByUser(userId: string, viewerId: string): Promise<PostWithAuthor[]> {
+  const { data, error } = await db()
+    .from("likes")
+    .select(`created_at, post:ratings!likes_rating_id_fkey(${POST_FIELDS})`)
+    .eq("user_id", userId)
+    .eq("post.viewer_like.user_id", viewerId)
+    .eq("post.viewer_repost.user_id", viewerId)
+    .order("created_at", { ascending: false });
+  if (error) fail(error);
+  return data.flatMap((row) => (row.post && toPostWithAuthor(row.post as PostRow)) || []);
 }
 
 export async function saveRating(userId: string, input: NewPostInput): Promise<Post> {
@@ -507,7 +682,109 @@ export async function saveRating(userId: string, input: NewPostInput): Promise<P
   return toPost(data);
 }
 
+export async function updateRating(
+  ratingId: string,
+  changes: { rating: number; review: string; method: RatingMethod },
+): Promise<void> {
+  const { error } = await db().from("ratings").update(changes).eq("id", ratingId);
+  if (error) fail(error);
+}
+
 export async function deleteRating(ratingId: string): Promise<void> {
   const { error } = await db().from("ratings").delete().eq("id", ratingId);
+  if (error) fail(error);
+}
+
+// ─── Likes, reposts, comments ───────────────────────────────────────────────
+
+export async function setLiked(viewerId: string, ratingId: string, liked: boolean): Promise<void> {
+  const client = db();
+  const { error } = liked
+    ? await client.from("likes").upsert(
+        { user_id: viewerId, rating_id: ratingId },
+        { onConflict: "user_id,rating_id", ignoreDuplicates: true },
+      )
+    : await client.from("likes").delete().eq("user_id", viewerId).eq("rating_id", ratingId);
+  if (error) fail(error);
+}
+
+export async function setReposted(viewerId: string, ratingId: string, reposted: boolean): Promise<void> {
+  const client = db();
+  const { error } = reposted
+    ? await client.from("reposts").upsert(
+        { user_id: viewerId, rating_id: ratingId },
+        { onConflict: "user_id,rating_id", ignoreDuplicates: true },
+      )
+    : await client.from("reposts").delete().eq("user_id", viewerId).eq("rating_id", ratingId);
+  if (error) fail(error);
+}
+
+/** Oldest first, so a conversation reads from the top. */
+export async function listComments(ratingId: string): Promise<PostComment[]> {
+  const { data, error } = await db()
+    .from("comments")
+    .select("*, author:profiles!comments_user_id_fkey(*)")
+    .eq("rating_id", ratingId)
+    .order("created_at", { ascending: true });
+  if (error) fail(error);
+  return data.flatMap((row) =>
+    row.author
+      ? [{ id: row.id, ratingId: row.rating_id, author: toProfile(row.author), body: row.body, createdAt: row.created_at }]
+      : [],
+  );
+}
+
+export async function addComment(viewerId: string, ratingId: string, body: string): Promise<void> {
+  const { error } = await db().from("comments").insert({ user_id: viewerId, rating_id: ratingId, body: body.trim() });
+  if (error) fail(error);
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  const { error } = await db().from("comments").delete().eq("id", commentId);
+  if (error) fail(error);
+}
+
+// ─── Album lists ────────────────────────────────────────────────────────────
+
+const LIST_FIELDS = "*, items:album_list_items(*)";
+
+/** A profile's lists, newest first. */
+export async function listAlbumLists(userId: string): Promise<AlbumList[]> {
+  const { data, error } = await db()
+    .from("album_lists")
+    .select(LIST_FIELDS)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .order("sort_order", { referencedTable: "items" });
+  if (error) fail(error);
+  return data.map(toAlbumList);
+}
+
+export async function getAlbumList(listId: string): Promise<AlbumListWithOwner | null> {
+  if (!UUID_PATTERN.test(listId)) return null;
+  const { data, error } = await db()
+    .from("album_lists")
+    .select(`${LIST_FIELDS}, owner:profiles!album_lists_user_id_fkey(*)`)
+    .eq("id", listId)
+    .order("sort_order", { referencedTable: "items" })
+    .maybeSingle();
+  if (error) fail(error);
+  return data?.owner ? { ...toAlbumList(data), owner: toProfile(data.owner) } : null;
+}
+
+/** Creates a list, or replaces one's details and albums when `listId` is given. Returns its id. */
+export async function saveAlbumList(input: AlbumListInput, listId: string | null = null): Promise<string> {
+  const { data, error } = await db().rpc("save_album_list", {
+    list_id: listId,
+    list_title: input.title,
+    list_description: input.description,
+    albums: input.albums,
+  });
+  if (error) fail(error);
+  return data;
+}
+
+export async function deleteAlbumList(listId: string): Promise<void> {
+  const { error } = await db().from("album_lists").delete().eq("id", listId);
   if (error) fail(error);
 }

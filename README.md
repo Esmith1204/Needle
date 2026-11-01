@@ -1,6 +1,6 @@
 # Needle
 
-A social music rating app: rate albums on a 10-point decimal scale, or rank them by comparison against your past ratings; write short reviews; and follow friends' ratings.
+A social music rating app: rate albums on a 10-point decimal scale, or rank them by comparison against your past ratings; write short reviews; follow people; comment on, like, repost, and share their reviews; and build lists of albums.
 
 Built with Vite, React, TypeScript, Tailwind CSS v4, React Router, GSAP, and Supabase (Auth, Postgres, Realtime).
 
@@ -21,13 +21,18 @@ The app needs a Supabase project. See [Supabase setup](#supabase-setup).
 | `/login`      | Sign in. Every other page redirects here when you're signed out.                     |
 | `/signup`     | Create an account: name, handle, email, password                                     |
 | `/welcome`    | Pick a name and handle (only for accounts created without one)                       |
-| `/`           | Timeline: Everyone / Friends feeds, updates live                                     |
+| `/`           | Timeline: Everyone / Following feeds with reposts, updates live                      |
 | `/rate`       | Rate an album: **Score it** (0.0–10.0) or **Compare** (unlocks at 10 ratings)        |
-| `/discover`   | Search people, add friends, and see popular albums (also the right column on wide screens) |
-| `/u/:handle`  | Profile: live counts, histogram, and Ratings / Reviews / Friends tabs                |
+| `/discover`   | Search people, follow them, and see popular albums (also the right column on wide screens) |
+| `/u/:handle`  | Profile: banner, live counts, histogram, album lists, and Ratings / Reviews / Reposts / Likes tabs |
 | `/profile`    | Redirects to your own profile                                                        |
+| `/post/:id`   | One review and its comments. Its author can edit or delete it here                   |
+| `/followers`, `/following` | Your own lists. Other people's can't be opened                          |
+| `/lists/new`, `/lists/:id`, `/lists/:id/edit` | Create, view, and edit an album list                 |
+| `/settings`   | Your email and handle, connected Google account                                      |
 | `/settings/accessibility` | Light mode, color options, font size, reduced motion, image descriptions (saved per device) |
-| `/settings/security` | Password, two-factor authentication and its recovery code, connected Google account, delete your profile |
+| `/settings/security` | Password, two-factor authentication and its recovery code                     |
+| `/settings/privacy` | Who can see what, delete your profile                                          |
 
 ## Rate by comparison
 
@@ -37,32 +42,34 @@ Inspired by Beli: once you have 10 ratings, **Compare** asks whether you loved t
 
 ```
 src/
-  components/   Layout, AccountMenu, DiscoverPanel, PostCard, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
-  pages/        Login, SignUp, Welcome, TwoFactorChallenge, Timeline, CreateRating, Discover, Profile, Accessibility, Security
+  components/   Layout, AccountMenu, DiscoverPanel, PostCard, PostActions, ProfileImagesDialog, SettingsPieces, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
+  pages/        Login, SignUp, Welcome, TwoFactorChallenge, Timeline, Post, CreateRating, Discover, Profile, FollowList, Lists, Accessibility, Settings, Security, Privacy
   context/      SessionContext: Supabase auth session + the signed-in user's profile
                 PreferencesContext: the accessibility options
   hooks/        useAsync, useRealtimeRefresh (Supabase Realtime), useHandleCheck, useEnterList
   lib/
-    api.ts          All Supabase reads/writes (auth, profiles, friends, ratings)
+    api.ts          All Supabase reads/writes (auth, profiles, follows, ratings, likes, reposts, comments, lists)
     compareRank.ts  Rate-by-comparison logic
     motion.ts       GSAP helpers; every animation respects reduced motion (device or Needle setting)
     preferences.ts  Saves the accessibility options and applies them to <html> for index.css
     supabase.ts     Typed Supabase client
     itunes.ts       Album + cover search via the iTunes Search API
-    format.ts       Rating/handle validation, formatting, image resizing
+    gifCrop.ts      Crops an animated GIF frame by frame, keeping its animation
+    format.ts       Rating/handle validation, formatting, image cropping and resizing
   types/        App types + Supabase table types (mirror the migrations)
 supabase/migrations/
   001_ratings.sql   ratings table (prototype)
   002_accounts.sql  profiles, sign-up trigger, friendships, ownership rules, realtime
   003_account_security.sql  2FA enforcement on every table, account deletion
   004_account_protection.sql  Server checks on sign-in method changes, recovery codes
+  005_social.sql    friendships become follows; likes, reposts, comments, album lists, profile images
 ```
 
 ## Supabase setup
 
 1. **Create a project** at [supabase.com](https://supabase.com/dashboard).
-2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`.
-   `002` deletes any existing ratings. They belonged to the old placeholder user.
+2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`, then `005_social.sql`.
+   `002` deletes any existing ratings. They belonged to the old placeholder user. `005` keeps everything, and turns each friend into a follow. Deploy the matching app at the same time, because older builds can't read the renamed table.
 3. **Auth settings** (Authentication in the dashboard):
    - **Sign In / Providers → Email:** turn on **Require current password when changing password**.
    - **Sign In / Providers → Email:** turn **Confirm email** off for class testing. With it on, new users must click an emailed link before signing in, and Supabase's built-in mailer only delivers to your project's team members, 2 emails per hour. Before real users sign up, [add your own SMTP server](https://supabase.com/docs/guides/auth/auth-smtp) and turn it back on. Until then, anyone can register an email address they don't own.
@@ -75,6 +82,14 @@ supabase/migrations/
    ```
    (`VITE_SUPABASE_ANON_KEY` is also accepted for a legacy anon key.) Restart `npm run dev` after editing.
 6. **Vercel:** add the same two variables under **Project → Settings → Environment Variables**, then **redeploy**. Vite bakes them into the build.
+
+### Profile pictures and banners
+
+Upload a JPEG, PNG, WebP, or GIF of up to 25 MB, then crop it. Nothing changes on the profile until you save the crop. Images are saved as JPEGs, and GIFs stay animated. The saved file can be at most 5 MB, the limit on the `profile-media` bucket from migration 005, so a large GIF may need a tighter crop.
+
+### Who can see what
+
+The database enforces this, not just the app. Follower and following lists are readable only by the two people in each follow (migration 005). Their counts stay public through `profile_stats()`, which returns numbers and no names. Because of that rule, someone else's counts only update live when you're part of the change. Everything else on a profile can be read by anyone signed in.
 
 ### Google sign-in
 
@@ -98,7 +113,6 @@ If the triggers ever block something they shouldn't, the top of `004_account_pro
 
 ## Not built yet
 
-- Likes, bookmarks, comments, and reposts on posts only toggle on screen; they aren't stored.
-- Editing your profile (name, bio, avatar) after sign-up.
+- Editing your name and bio after sign-up.
 - Resetting a forgotten password. When this is built, a Google-only account setting its first password this way needs an `add_password` grant, which migration 004's trigger would otherwise refuse.
 - Uploaded covers are stored inline in the rating row; moving them to Supabase Storage would be better at scale.
