@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, useParams } from "react-router";
+import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { AlbumCover, CoverDescription } from "../components/AlbumCover";
 import { Avatar } from "../components/Avatar";
+import { EditProfileDialog } from "../components/EditProfileDialog";
 import { CheckIcon, GridIcon, ListIcon, PlusIcon } from "../components/Icons";
-import { PageHeader } from "../components/PageHeader";
 import { PostCard } from "../components/PostCard";
 import { ProfileImage } from "../components/ProfileImage";
-import { ProfileImagesDialog } from "../components/ProfileImagesDialog";
 import { ProfileLists } from "../components/ProfileLists";
 import { RatingHistogram } from "../components/RatingHistogram";
 import { Tabs } from "../components/Tabs";
@@ -82,17 +81,14 @@ function ProfilePage({ handle }: { handle: string }) {
 
   return (
     <div>
-      <PageHeader
-        title={profile.displayName}
-        subtitle={`${profile.ratingCount.toLocaleString()} ${profile.ratingCount === 1 ? "rating" : "ratings"}`}
-      />
+      {/* No title bar: the header below already shows the name and the number of ratings. */}
       <ProfileHeader
         profile={profile}
         viewerId={viewer.id}
         isMe={isMe}
         following={following}
         onFollowChange={reload}
-        onImagesChange={reload}
+        onProfileChange={reload}
       />
       <Tabs label="Profile sections" tabs={TABS} value={tab} onChange={setTab} />
 
@@ -291,14 +287,15 @@ interface ProfileHeaderProps {
   isMe: boolean;
   following: boolean;
   onFollowChange: () => void;
-  onImagesChange: () => void;
+  onProfileChange: () => void;
 }
 
-function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onFollowChange, onImagesChange }: ProfileHeaderProps) {
+function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onFollowChange, onProfileChange }: ProfileHeaderProps) {
+  const navigate = useNavigate();
   const [following, setFollowingState] = useState(savedFollowing);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingImages, setEditingImages] = useState(false);
+  const [editing, setEditing] = useState(false);
   useEffect(() => setFollowingState(savedFollowing), [savedFollowing]);
 
   // Show the change immediately; the reload then confirms it from the database.
@@ -330,8 +327,8 @@ function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onF
           <Avatar profile={profile} size={72} className="relative -mt-9 ring-4 ring-paper" />
           <div className="mt-2.5 flex flex-col items-end gap-1">
             {isMe ? (
-              <button type="button" onClick={() => setEditingImages(true)} className="btn btn-outline">
-                Edit picture and banner
+              <button type="button" onClick={() => setEditing(true)} className="btn btn-outline">
+                Edit profile
               </button>
             ) : following ? (
               <button
@@ -366,12 +363,12 @@ function ProfileHeader({ profile, viewerId, isMe, following: savedFollowing, onF
           <Stat label="Following" value={profile.followingCount} to={isMe ? "/following" : undefined} />
         </div>
       </div>
-      {editingImages && (
-        <ProfileImagesDialog
-          onClose={() => {
-            setEditingImages(false);
-            onImagesChange();
-          }}
+      {editing && (
+        <EditProfileDialog
+          onClose={() => setEditing(false)}
+          onChange={onProfileChange}
+          // The profile is keyed by handle, so this opens it fresh at its new address.
+          onHandleChange={(handle) => navigate(`/u/${handle}`, { replace: true })}
         />
       )}
     </header>

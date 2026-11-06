@@ -202,6 +202,27 @@ export type Database = {
           },
         ];
       };
+      handle_changes: {
+        Row: {
+          id: number;
+          user_id: string;
+          old_handle: string;
+          new_handle: string;
+          changed_at: string;
+        };
+        // Written only by the database, when a profile's handle changes (migration 007).
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: "handle_changes_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       album_list_items: {
         Row: {
           id: string;
@@ -275,6 +296,19 @@ export type Database = {
       redeem_recovery_code: {
         Args: { code: string };
         Returns: boolean;
+      };
+      suggested_people: {
+        Args: { max_results: number; keep: string[] };
+        Returns: {
+          id: string;
+          handle: string;
+          display_name: string;
+          avatar_url: string | null;
+          banner_url: string | null;
+          bio: string;
+          created_at: string;
+          shared_albums: number;
+        }[];
       };
     };
     Enums: Record<string, never>;

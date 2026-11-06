@@ -13,6 +13,8 @@ interface LoadedImage {
   url: string;
   width: number;
   height: number;
+  /** Already decoded, so saving doesn't decode it again. */
+  element: HTMLImageElement;
 }
 
 interface Point {
@@ -38,14 +40,16 @@ interface ImageCropperProps {
   file: File;
   kind: ProfileImageKind;
   busy: boolean;
+  /** What the save button says while `busy`. */
+  busyLabel?: string;
   onCancel: () => void;
   /** Called only when the user confirms. Nothing is uploaded or saved before this. */
-  onConfirm: (crop: CropRect) => void;
+  onConfirm: (crop: CropRect, decoded: HTMLImageElement) => void;
   onUnreadable: () => void;
 }
 
 /** Drag to reposition and slide to zoom, with the frame showing exactly what will be kept. */
-export function ImageCropper({ file, kind, busy, onCancel, onConfirm, onUnreadable }: ImageCropperProps) {
+export function ImageCropper({ file, kind, busy, busyLabel = "Saving…", onCancel, onConfirm, onUnreadable }: ImageCropperProps) {
   const aspect = ASPECT_RATIO[kind];
   const isGif = isGifFile(file);
   const [image, setImage] = useState<LoadedImage | null>(null);
@@ -60,7 +64,7 @@ export function ImageCropper({ file, kind, busy, onCancel, onConfirm, onUnreadab
     let cancelled = false;
     loader.onload = () => {
       if (cancelled) return;
-      setImage({ url, width: loader.naturalWidth, height: loader.naturalHeight });
+      setImage({ url, width: loader.naturalWidth, height: loader.naturalHeight, element: loader });
       setCenter({ x: loader.naturalWidth / 2, y: loader.naturalHeight / 2 });
       setZoom(1);
     };
@@ -128,12 +132,15 @@ export function ImageCropper({ file, kind, busy, onCancel, onConfirm, onUnreadab
     if (!image || !area) return;
     const x = Math.round(area.x);
     const y = Math.round(area.y);
-    onConfirm({
-      x,
-      y,
-      width: clamp(Math.round(area.width), 1, image.width - x),
-      height: clamp(Math.round(area.height), 1, image.height - y),
-    });
+    onConfirm(
+      {
+        x,
+        y,
+        width: clamp(Math.round(area.width), 1, image.width - x),
+        height: clamp(Math.round(area.height), 1, image.height - y),
+      },
+      image.element,
+    );
   };
 
   const label = kind === "avatar" ? "picture" : "banner";
@@ -198,7 +205,7 @@ export function ImageCropper({ file, kind, busy, onCancel, onConfirm, onUnreadab
           Cancel
         </button>
         <button type="button" onClick={confirm} disabled={busy || !image} className="btn btn-primary">
-          {busy ? "Saving…" : `Save ${label}`}
+          {busy ? busyLabel : `Save ${label}`}
         </button>
       </div>
     </div>

@@ -17,10 +17,69 @@ const normalize = (text: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+/** iTunes puts the kind of release in its titles. Ratings saved before the app removed it still have it. */
+const KIND_SUFFIX = /\s+-\s+(?:single|ep)$/i;
+
+const withoutKind = (title: string) => title.replace(KIND_SUFFIX, "");
+
+/** A title with the edition and the kind of release taken off: "Espresso - Single" and "Espresso (Deluxe)" are both "espresso". */
+function releaseTitleKey(title: string): string {
+  const base = withoutKind(title);
+  return normalize(base.replace(/\([^)]*\)|\[[^\]]*\]/g, " ")) || normalize(base);
+}
+
 /** Two listings with this in common are the same release, even if one says "(Deluxe)" and the other doesn't. */
 export function sameAlbumKey(title: string, artist: string | null): string {
-  const withoutEdition = title.replace(/\([^)]*\)|\[[^\]]*\]/g, " ");
-  return `${normalize(withoutEdition) || normalize(title)}|${normalize(artist ?? "")}`;
+  return `${releaseTitleKey(title)}|${normalize(artist ?? "")}`;
+}
+
+// Separators between credited artists. The words need spaces around them, so "Lil Nas X" stays whole.
+const ARTIST_SEPARATOR = /\s*(?:,|&|\+)\s*|\s+(?:x|feat\.?|ft\.?|featuring|with)\s+/i;
+
+/**
+ * Whether two credits share an artist. A single is often credited differently on each
+ * service: "Lady Gaga & Bruno Mars" on iTunes is "Lady Gaga" on Deezer.
+ */
+function sameArtists(a: string | null, b: string | null): boolean {
+  if (normalize(a ?? "") === normalize(b ?? "")) return true;
+  const names = (credit: string | null) => (credit ?? "").split(ARTIST_SEPARATOR).map(normalize).filter(Boolean);
+  const first = new Set(names(a));
+  return names(b).some((name) => first.has(name));
+}
+
+/** Whether a search result is the album a rating was saved with. */
+function isSameRelease(result: Album, album: Album): boolean {
+  return releaseTitleKey(result.title) === releaseTitleKey(album.title) && sameArtists(result.artist, album.artist);
+}
+
+/**
+ * Joins an album that only iTunes listed with the same one that only Deezer did, when the two
+ * credit it differently. Without this, picking the iTunes listing saves no Deezer id.
+ */
+function joinDifferentlyCredited(results: AlbumSearchResult[]): AlbumSearchResult[] {
+  const twins = new Map<AlbumSearchResult, AlbumSearchResult>();
+  const joined = new Set<AlbumSearchResult>();
+  for (const result of results) {
+    if (!result.itunesId || result.deezerId) continue;
+    const twin = results.find(
+      (other) =>
+        other.deezerId &&
+        !other.itunesId &&
+        !joined.has(other) &&
+        normalize(other.title) === normalize(result.title) &&
+        sameArtists(other.artist, result.artist),
+    );
+    if (twin) {
+      twins.set(result, twin);
+      joined.add(twin);
+    }
+  }
+  // The iTunes listing is the one kept, because it names every main artist.
+  return results.flatMap((result) => {
+    if (joined.has(result)) return [];
+    const twin = twins.get(result);
+    return [twin ? { ...result, deezerId: twin.deezerId, year: result.year ?? twin.year } : result];
+  });
 }
 
 function relevance(result: AlbumSearchResult, query: string): number {
@@ -64,7 +123,7 @@ export async function searchAlbums(term: string, signal?: AbortSignal): Promise<
   }
 
   const normalizedQuery = normalize(query);
-  return [...merged.values()]
+  return joinDifferentlyCredited([...merged.values()])
     .map((result) => ({ result, score: relevance(result, normalizedQuery) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_RESULTS)
@@ -94,25 +153,35 @@ export function canPreview(album: Album): boolean {
   return Boolean(album.deezerId || album.itunesId || album.artist);
 }
 
-/** Finds a player: from the ids saved with a rating, or for an older rating, by its exact title and artist. */
+/**
+ * Finds a player: Deezer's when the rating saved its id, or when it can be found by the album's
+ * title and artist, otherwise Apple Music's. Ratings saved before the ids were (or from an
+ * iTunes-only listing) are looked up this way.
+ */
 export async function findPreviewSource(album: Album, signal?: AbortSignal): Promise<PreviewSource | null> {
   if (album.deezerId && IDS_PATTERN.test(album.deezerId)) return { service: "deezer", id: album.deezerId };
-  if (album.itunesId && IDS_PATTERN.test(album.itunesId)) return { service: "itunes", id: album.itunesId };
-  if (!album.artist) return null;
+  const saved: PreviewSource | null =
+    album.itunesId && IDS_PATTERN.test(album.itunesId) ? { service: "itunes", id: album.itunesId } : null;
+  if (!album.artist) return saved;
 
-  const key = sameAlbumKey(album.title, album.artist);
+  const key = `${sameAlbumKey(album.title, album.artist)}|${saved?.id ?? ""}`;
   const known = lookups.get(key);
   if (known !== undefined) return known;
 
-  const results = await searchAlbums(`${album.artist} ${album.title}`, signal);
-  const match = results.filter((result) => sameAlbumKey(result.title, result.artist) === key);
+  let results: AlbumSearchResult[];
+  try {
+    // Searching with " - Single" still in the title finds the wrong album on Deezer.
+    results = await searchAlbums(`${album.artist} ${withoutKind(album.title)}`, signal);
+  } catch (err) {
+    if (saved) return saved;
+    throw err;
+  }
+  const match = results.filter((result) => isSameRelease(result, album));
   const deezer = match.find((result) => result.deezerId);
   const itunes = match.find((result) => result.itunesId);
   const source: PreviewSource | null = deezer?.deezerId
     ? { service: "deezer", id: deezer.deezerId }
-    : itunes?.itunesId
-      ? { service: "itunes", id: itunes.itunesId }
-      : null;
+    : (saved ?? (itunes?.itunesId ? { service: "itunes", id: itunes.itunesId } : null));
   lookups.set(key, source);
   return source;
 }

@@ -11,11 +11,13 @@ interface PersonRowProps {
   viewerId: string;
   following: boolean;
   showBio: boolean;
+  /** A short line on why they're listed, like the albums you have in common. */
+  detail?: string;
   onChange: () => void;
 }
 
 /** One person in a list: links to their profile, with a button to follow or unfollow them. */
-export function PersonRow({ person, viewerId, following, showBio, onChange }: PersonRowProps) {
+export function PersonRow({ person, viewerId, following, showBio, detail, onChange }: PersonRowProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -41,6 +43,7 @@ export function PersonRow({ person, viewerId, following, showBio, onChange }: Pe
         <span className="min-w-0 leading-tight">
           <span className="block truncate text-sm font-bold group-hover:underline">{person.displayName}</span>
           <span className="block truncate text-xs text-muted">@{person.handle}</span>
+          {detail && <span className="block truncate text-xs font-semibold text-accent">{detail}</span>}
           {showBio && person.bio && <span className="mt-0.5 block truncate text-xs">{person.bio}</span>}
         </span>
       </Link>

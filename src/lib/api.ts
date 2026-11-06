@@ -17,10 +17,18 @@ import type {
   Post,
   RatedAlbum,
   RatingMethod,
+  SuggestedPerson,
   TopAlbum,
   TotpEnrollment,
 } from "../types";
-import { cropImageFile } from "./format";
+import {
+  BIO_MAX_LENGTH,
+  cropImageFile,
+  DISPLAY_NAME_MAX_LENGTH,
+  fullTimestamp,
+  HANDLE_CHANGE_LIMIT,
+  HANDLE_CHANGE_WINDOW_HOURS,
+} from "./format";
 import { googleSignInEnabled, missingSupabaseEnv, PROFILE_MEDIA_BUCKET, supabase } from "./supabase";
 
 // The single data-access module the UI talks to. Every function is async,
@@ -403,25 +411,50 @@ export async function createProfile(userId: string, handle: string, displayName:
   return toProfile(data);
 }
 
-export async function getProfileById(id: string): Promise<Profile | null> {
-  const { data, error } = await db().from("profiles").select("*").eq("id", id).maybeSingle();
+export async function getProfileById(id: string, signal?: AbortSignal): Promise<Profile | null> {
+  let request = db().from("profiles").select("*").eq("id", id);
+  if (signal) request = request.abortSignal(signal);
+  const { data, error } = await request.maybeSingle();
   if (error) fail(error);
   return data ? toProfile(data) : null;
 }
 
+/**
+ * Stops waiting for `promise` after `ms`. The request itself can't always be cancelled, but the
+ * page stops hanging on it: on a phone's connection, an upload can otherwise wait for minutes.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+const SAVE_TIMEOUT_MS = 20_000;
+const TIMED_OUT = "Saving took too long, so it stopped. Check your connection and try again.";
+
 // ─── Profile pictures and banners ───────────────────────────────────────────
 
 const IMAGE_MAX_WIDTHS: Record<ProfileImageKind, number> = { avatar: 400, banner: 1500 };
+/** Upload names end in the time they were made: avatar-1730000000000.jpg. */
+const UPLOAD_NAME = /^(avatar|banner)-(\d+)\./;
 
-/** Removes this user's uploaded files, keeping `keepPath`. Only `kind`'s files when it's given. */
-async function removeUploads(userId: string, kind?: ProfileImageKind, keepPath?: string): Promise<void> {
+/**
+ * Removes this user's uploaded files: all of them, or `kind`'s files made before `before`.
+ * Never newer ones, so a cleanup that finishes late can't remove an image saved after it.
+ */
+async function removeUploads(userId: string, kind?: ProfileImageKind, before = Infinity): Promise<void> {
   const bucket = db().storage.from(PROFILE_MEDIA_BUCKET);
   const { data, error } = await bucket.list(userId, { limit: 100 });
   if (error) throw error;
   const paths = data
-    .filter((file) => !kind || file.name.startsWith(`${kind}-`))
-    .map((file) => `${userId}/${file.name}`)
-    .filter((path) => path !== keepPath);
+    .filter((file) => {
+      if (!kind) return true;
+      const match = UPLOAD_NAME.exec(file.name);
+      return match?.[1] === kind && Number(match[2]) < before;
+    })
+    .map((file) => `${userId}/${file.name}`);
   if (paths.length > 0) await bucket.remove(paths);
 }
 
@@ -432,22 +465,105 @@ export async function setProfileImage(
   url: string | null,
   uploadedPath?: string,
 ): Promise<void> {
+  const changedAt = Number(UPLOAD_NAME.exec(uploadedPath?.split("/").pop() ?? "")?.[2] ?? Date.now());
   const { error } = await db()
     .from("profiles")
     .update(kind === "avatar" ? { avatar_url: url } : { banner_url: url })
-    .eq("id", userId);
-  if (error) fail(error);
-  // The replaced file is only clutter now, so failing to remove it isn't worth reporting.
-  await removeUploads(userId, kind, uploadedPath).catch(() => undefined);
+    .eq("id", userId)
+    .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS));
+  if (error) {
+    if (/abort|timeout/i.test(error.message)) throw new Error(TIMED_OUT);
+    fail(error);
+  }
+  // The replaced files are only clutter now. Removing them happens in the background, so a slow
+  // connection doesn't hold up the save, and failing isn't worth reporting.
+  void removeUploads(userId, kind, changedAt).catch(() => undefined);
 }
 
-export async function uploadProfileImage(userId: string, kind: ProfileImageKind, file: File, crop: CropRect): Promise<void> {
-  const blob = await cropImageFile(file, crop, IMAGE_MAX_WIDTHS[kind]);
+/** What saving a new image is busy with, to show while it works. */
+export type ImageSaveStage = "preparing" | "uploading" | "saving";
+
+interface UploadOptions {
+  /** The image already loaded for cropping, so a phone doesn't have to decode a large photo twice. */
+  decoded?: HTMLImageElement;
+  onStage?: (stage: ImageSaveStage) => void;
+}
+
+/** Allows for a slow phone connection: 30 seconds, plus one for each 100 KB. */
+const uploadTimeout = (bytes: number) => 30_000 + bytes / 100;
+
+export async function uploadProfileImage(
+  userId: string,
+  kind: ProfileImageKind,
+  file: File,
+  crop: CropRect,
+  { decoded, onStage }: UploadOptions = {},
+): Promise<void> {
+  onStage?.("preparing");
+  const blob = await cropImageFile(file, crop, IMAGE_MAX_WIDTHS[kind], decoded);
   const path = `${userId}/${kind}-${Date.now()}.${blob.type === "image/gif" ? "gif" : "jpg"}`;
   const bucket = db().storage.from(PROFILE_MEDIA_BUCKET);
-  const { error } = await bucket.upload(path, blob, { contentType: blob.type, cacheControl: "31536000" });
+  onStage?.("uploading");
+  const { error } = await withTimeout(
+    bucket.upload(path, blob, { contentType: blob.type, cacheControl: "31536000" }),
+    uploadTimeout(blob.size),
+    TIMED_OUT,
+  );
   if (error) throw new Error(error.message);
+  onStage?.("saving");
   await setProfileImage(userId, kind, bucket.getPublicUrl(path).data.publicUrl, path);
+}
+
+// ─── Name, handle, and bio ──────────────────────────────────────────────────
+
+/** Recent handle changes, newest first, for showing how many are left. The database enforces the limit. */
+export async function listRecentHandleChanges(userId: string): Promise<string[]> {
+  const since = new Date(Date.now() - HANDLE_CHANGE_WINDOW_HOURS * 3_600_000).toISOString();
+  const { data, error } = await db()
+    .from("handle_changes")
+    .select("changed_at")
+    .eq("user_id", userId)
+    .gt("changed_at", since)
+    .order("changed_at", { ascending: false });
+  if (error) fail(error);
+  return data.map((row) => row.changed_at);
+}
+
+const CHECK_MESSAGES: Record<string, string> = {
+  profiles_handle_check: "Handles use 3–20 lowercase letters, numbers, dots, or underscores.",
+  profiles_display_name_check: `Names need 1–${DISPLAY_NAME_MAX_LENGTH} characters.`,
+  profiles_bio_check: `Bios can be at most ${BIO_MAX_LENGTH} characters.`,
+};
+
+function profileFail(error: PostgrestError): never {
+  if (error.code === "23505") throw new Error("That handle was just taken. Try another one.");
+  if (error.message === "handle_change_limit") {
+    const next = error.details ? ` You can change it again at ${fullTimestamp(error.details)}.` : "";
+    throw new Error(`You've changed your handle ${HANDLE_CHANGE_LIMIT} times in the last two days.${next}`);
+  }
+  if (error.code === "23514") {
+    const constraint = Object.keys(CHECK_MESSAGES).find((name) => error.message.includes(name));
+    if (constraint) throw new Error(CHECK_MESSAGES[constraint]);
+  }
+  if (/abort|timeout/i.test(error.message)) throw new Error(TIMED_OUT);
+  fail(error);
+}
+
+/** Saves a new name and bio, and a new handle when `handle` is given. All or nothing. */
+export async function updateProfileDetails(
+  userId: string,
+  changes: { displayName: string; bio: string; handle?: string },
+): Promise<void> {
+  const { error } = await db()
+    .from("profiles")
+    .update({
+      display_name: changes.displayName.trim(),
+      bio: changes.bio.trim(),
+      ...(changes.handle !== undefined && { handle: changes.handle.toLowerCase() }),
+    })
+    .eq("id", userId)
+    .abortSignal(AbortSignal.timeout(SAVE_TIMEOUT_MS));
+  if (error) profileFail(error);
 }
 
 // ─── Profiles & followers ───────────────────────────────────────────────────
@@ -526,6 +642,21 @@ export async function searchProfiles(query: string): Promise<Profile[]> {
   const { data, error } = await request;
   if (error) fail(error);
   return data.map(toProfile);
+}
+
+/**
+ * People the viewer doesn't follow yet, those who've rated the most of the same albums first
+ * (see suggested_people in migration 007). `keep` stays in even once followed, so a row
+ * doesn't vanish from under the button that was just pressed.
+ */
+export async function suggestPeople(limit: number, keep: string[] = []): Promise<SuggestedPerson[]> {
+  const { data, error } = await db().rpc("suggested_people", { max_results: limit, keep });
+  if (error) {
+    // Before migration 007 is run, the newest members stand in.
+    if (error.code === "PGRST202") return (await searchProfiles("")).map((person) => ({ ...person, sharedAlbums: 0 }));
+    fail(error);
+  }
+  return data.map((row) => ({ ...toProfile(row), sharedAlbums: row.shared_albums }));
 }
 
 // ─── Ratings ────────────────────────────────────────────────────────────────

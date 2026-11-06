@@ -3,15 +3,19 @@ import { Link } from "react-router";
 import { useCurrentUser } from "../context/SessionContext";
 import { useAsync } from "../hooks/useAsync";
 import { useRealtimeRefresh } from "../hooks/useRealtimeRefresh";
-import { listFollowing, listTopAlbums, searchProfiles } from "../lib/api";
+import { listFollowing, listTopAlbums, searchProfiles, suggestPeople } from "../lib/api";
 import { enter, useGSAP } from "../lib/motion";
-import type { TopAlbum } from "../types";
+import type { Profile, TopAlbum } from "../types";
 import { AlbumCover, CoverDescription } from "./AlbumCover";
 import { SearchIcon } from "./Icons";
 import { PersonRow } from "./PersonRow";
 import { ScoreBadge } from "./ScoreBadge";
 
 const COMPACT_PEOPLE = 4;
+const SUGGESTED_PEOPLE = 30;
+
+/** Someone in the list: from a search, or suggested along with how many albums you've both rated. */
+type ListedPerson = Profile & { sharedAlbums?: number };
 
 /**
  * Search for people, people to follow, and popular albums. `compact` is the short
@@ -29,7 +33,11 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const results = useAsync(() => searchProfiles(debounced), [debounced]);
+  // Without a search, the people who've rated the most of the same albums as you come first.
+  const results = useAsync<ListedPerson[]>(
+    () => (debounced ? searchProfiles(debounced) : suggestPeople(SUGGESTED_PEOPLE, followedHere)),
+    [debounced],
+  );
   const following = useAsync(() => listFollowing(viewer.id), [viewer.id]);
   const albums = useAsync(() => listTopAlbums(compact ? 5 : 10), [compact]);
   useRealtimeRefresh(["ratings", "profiles", "follows"], () => {
@@ -88,6 +96,11 @@ export function DiscoverPanel({ compact = false }: { compact?: boolean }) {
                 viewerId={viewer.id}
                 following={followingIds.has(person.id)}
                 showBio={!compact}
+                detail={
+                  person.sharedAlbums
+                    ? `${person.sharedAlbums} ${person.sharedAlbums === 1 ? "album" : "albums"} in common`
+                    : undefined
+                }
                 onChange={() => {
                   setFollowedHere((ids) => [...ids, person.id]);
                   following.reload();

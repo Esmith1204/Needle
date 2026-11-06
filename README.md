@@ -23,8 +23,8 @@ The app needs a Supabase project. See [Supabase setup](#supabase-setup).
 | `/welcome`    | Pick a name and handle (only for accounts created without one)                       |
 | `/`           | Timeline: Everyone / Following feeds with reposts, updates live                      |
 | `/rate`       | Rate an album: **Score it** (0.0–10.0) or **Compare** (unlocks at 10 ratings)        |
-| `/discover`   | Search people, follow them, and see popular albums (also the right column on wide screens) |
-| `/u/:handle`  | Profile: banner, live counts, histogram, album lists, and Ratings / Reviews / Reposts / Likes tabs |
+| `/discover`   | Search people, follow people who rated the same albums as you, and see popular albums (also the right column on wide screens) |
+| `/u/:handle`  | Profile: banner, live counts, histogram, album lists, and Ratings / Reviews / Reposts / Likes tabs. **Edit profile** on your own changes your picture, banner, name, handle, and bio |
 | `/profile`    | Redirects to your own profile                                                        |
 | `/post/:id`   | One review and its comments. Its author can edit or delete it here                   |
 | `/followers`, `/following` | Your own lists. Other people's can't be opened                          |
@@ -42,7 +42,7 @@ Inspired by Beli: once you have 10 ratings, **Compare** asks whether you loved t
 
 ```
 src/
-  components/   Layout, AccountMenu, DiscoverPanel, PostCard, PostActions, ProfileImagesDialog, SettingsPieces, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
+  components/   Layout, AccountMenu, DiscoverPanel, PostCard, PostActions, EditProfileDialog, ProfileDetailsForm, SettingsPieces, ComparisonRater, AlbumSearchField, AuthGuards, AuthLayout, …
   pages/        Login, SignUp, Welcome, TwoFactorChallenge, Timeline, Post, CreateRating, Discover, Profile, FollowList, Lists, Accessibility, Settings, Security, Privacy
   context/      SessionContext: Supabase auth session + the signed-in user's profile
                 PreferencesContext: the accessibility options
@@ -67,12 +67,13 @@ supabase/migrations/
   004_account_protection.sql  Server checks on sign-in method changes, recovery codes
   005_social.sql    friendships become follows; likes, reposts, comments, album lists, profile images
   006_album_previews.sql  Which album a rating is on Deezer and Apple Music, for preview players
+  007_profile_editing.sql  The limit on handle changes, and people to follow by albums in common
 ```
 
 ## Supabase setup
 
 1. **Create a project** at [supabase.com](https://supabase.com/dashboard).
-2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`, then `005_social.sql`, then `006_album_previews.sql`.
+2. **Run the migrations in order** in **SQL Editor → New query**: `001_ratings.sql` (skip it if you already ran `ratings.sql`), then `002_accounts.sql`, then `003_account_security.sql`, then `004_account_protection.sql`, then `005_social.sql`, then `006_album_previews.sql`, then `007_profile_editing.sql`.
    `002` deletes any existing ratings. They belonged to the old placeholder user. `005` keeps everything, and turns each friend into a follow. Deploy the matching app at the same time, because older builds can't read the renamed table.
 3. **Auth settings** (Authentication in the dashboard):
    - **Sign In / Providers → Email:** turn on **Require current password when changing password**.
@@ -92,14 +93,22 @@ supabase/migrations/
 Album search, previews, and suggestions need no keys or accounts:
 
 - **Search** asks iTunes and Deezer together and merges the results. In a test of 40 well-known albums and singles, iTunes alone found 26, Deezer 36, and the two together 37. If one is down or rate-limiting, the other still answers.
-- **Previews** are players hosted by Deezer, or by Apple Music for albums only it has. Listeners without an account get short samples. A rating saves which album it is when it's picked from search. Older ratings are looked up by exact title and artist, and show no player if there's no match.
+- **Previews** are players hosted by Deezer, or by Apple Music for albums only it has. Listeners without an account get short samples. A rating saves which album it is when it's picked from search. Older ratings, and ones saved with only an Apple Music id, are looked up on Deezer by title and artist, and show no player if there's no match. The lookup ignores the " - Single" and " - EP" that iTunes used to add to titles, and matches a single credited to "Lady Gaga & Bruno Mars" on iTunes with the same one credited to "Lady Gaga" on Deezer. Search joins those two listings too, so a new rating of either saves both ids.
 - **Suggestions** come from Deezer's related artists. They're worked out in the browser and saved on that device for a day, or until the albums they're based on change.
 - **Deezer's API can't be called from a browser directly**, so `vercel.json` and `vite.config.ts` pass `/deezer-api/*` through to it. Deezer allows about 50 requests per 5 seconds from one address, and everyone's requests share Vercel's. Search falls back to iTunes if that's ever reached.
 - **Why not Spotify:** its players need Spotify album ids, which only its API gives out. That API needs a server to hold its secret, a paid Premium subscription on the developer's account, and allows 10 search results per request. It also no longer offers related artists or recommendations to new apps.
 
-### Profile pictures and banners
+### Editing a profile
 
-Upload a JPEG, PNG, WebP, or GIF of up to 25 MB, then crop it. Nothing changes on the profile until you save the crop. Images are saved as JPEGs, and GIFs stay animated. The saved file can be at most 5 MB, the limit on the `profile-media` bucket from migration 005, so a large GIF may need a tighter crop.
+**Edit profile** on your own profile opens one dialog for everything on it.
+
+- **Picture and banner:** upload a JPEG, PNG, WebP, or GIF of up to 25 MB, then crop it. Nothing changes on the profile until you save the crop. Images are saved as JPEGs, and GIFs stay animated. The saved file can be at most 5 MB, the limit on the `profile-media` bucket from migration 005, so a large GIF may need a tighter crop. A save that hasn't finished after about 30 seconds (longer for big files) stops and says so, rather than waiting on a dropped connection.
+- **Name and bio:** up to 50 and 160 characters. They can change any time.
+- **Handle:** checked as you type, checked again when you save, and the database refuses a taken one either way. A handle can change **twice in any 48 hours**. Migration 007's trigger enforces this and logs each change in `handle_changes`, and the dialog shows how many changes are left. Changes made from the dashboard or SQL Editor are logged but not limited. Your profile moves to `/u/<new handle>`, and links to the old one stop working.
+
+### People to follow
+
+The Discover list puts first the people who've rated the most of the same albums as you, then those whose scores for them are closest to yours, then the newest members. People you already follow are left out. Albums count as the same even when one rating says "(Deluxe)" or iTunes' " - Single" and the other doesn't, or when one credits "Lady Gaga & Bruno Mars" and the other "Lady Gaga". This is `suggested_people()` in migration 007. Until that's run, the list shows the newest members.
 
 ### Who can see what
 
@@ -127,6 +136,5 @@ If the triggers ever block something they shouldn't, the top of `004_account_pro
 
 ## Not built yet
 
-- Editing your name and bio after sign-up.
 - Resetting a forgotten password. When this is built, a Google-only account setting its first password this way needs an `add_password` grant, which migration 004's trigger would otherwise refuse.
 - Uploaded covers are stored inline in the rating row; moving them to Supabase Storage would be better at scale.

@@ -37,7 +37,8 @@ export function HandleInput({
   check,
   error,
   className,
-}: InputProps & { check: { status: HandleStatus; message: string | null } }) {
+  disabled,
+}: InputProps & { check: { status: HandleStatus; message: string | null }; disabled?: boolean }) {
   // Live feedback while typing; the submit-time error takes over once they try to continue.
   const hint =
     check.status === "available" ? (
@@ -62,6 +63,7 @@ export function HandleInput({
             spellCheck={false}
             maxLength={20}
             placeholder="swrd.fsh"
+            disabled={disabled}
             value={value}
             onChange={(e) => onChange(e.target.value.toLowerCase().replace(/\s+/g, ""))}
             aria-invalid={Boolean(error ?? liveError) || undefined}

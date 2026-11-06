@@ -14,6 +14,11 @@ export interface Profile {
   bio: string;
 }
 
+/** Someone to follow, and how many albums they've rated that the viewer has too. */
+export interface SuggestedPerson extends Profile {
+  sharedAlbums: number;
+}
+
 export interface ProfileWithStats extends Profile {
   ratingCount: number;
   followerCount: number;

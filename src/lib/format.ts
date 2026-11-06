@@ -6,6 +6,23 @@ export const COMMENT_MAX_LENGTH = 280;
 export const LIST_TITLE_MAX_LENGTH = 80;
 export const LIST_DESCRIPTION_MAX_LENGTH = 300;
 export const MIN_PASSWORD = 6;
+/** The profiles table's limits (migration 002). */
+export const DISPLAY_NAME_MAX_LENGTH = 50;
+export const BIO_MAX_LENGTH = 160;
+/** How many times a handle can change in any stretch of this many hours (migration 007). */
+export const HANDLE_CHANGE_LIMIT = 2;
+export const HANDLE_CHANGE_WINDOW_HOURS = 48;
+
+/**
+ * When the handle can next change, given its recent changes newest first, or null if it can now.
+ * That's once the oldest change that still counts is two days old.
+ */
+export function nextHandleChangeAt(recentChanges: string[], now = Date.now()): Date | null {
+  const windowMs = HANDLE_CHANGE_WINDOW_HOURS * 3_600_000;
+  const counted = recentChanges.map((iso) => new Date(iso).getTime()).filter((at) => at > now - windowMs);
+  if (counted.length < HANDLE_CHANGE_LIMIT) return null;
+  return new Date(counted.sort((a, b) => b - a)[HANDLE_CHANGE_LIMIT - 1] + windowMs);
+}
 
 /** The largest file to start cropping. Cropping can bring it under the limit below. */
 export const PROFILE_FILE_MAX_BYTES = 25 * 1024 * 1024;
@@ -51,34 +68,13 @@ export function isGifFile(file: File): boolean {
   return file.type === "image/gif";
 }
 
-/**
- * Prepares a profile picture or banner for upload: the chosen part of the image, as a JPEG
- * no wider than `maxWidth`. A GIF stays a GIF and keeps its size, so that it keeps its animation.
- */
-export async function cropImageFile(file: File, crop: CropRect, maxWidth: number): Promise<Blob> {
-  if (isGifFile(file)) {
-    const cropped = await cropGif(new Uint8Array(await file.arrayBuffer()), crop);
-    if (cropped.length > PROFILE_IMAGE_MAX_BYTES) {
-      throw new Error("This GIF is still over 5 MB after cropping. Zoom in further or choose a smaller one.");
-    }
-    return new Blob([cropped], { type: "image/gif" });
-  }
+function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const canvas = document.createElement("canvas");
-      // Never enlarge a small image.
-      canvas.width = Math.min(maxWidth, crop.width);
-      canvas.height = Math.max(1, Math.round((crop.height * canvas.width) / crop.width));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("Canvas not supported"));
-        return;
-      }
-      ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("That image couldn't be processed."))), "image/jpeg", 0.85);
+      resolve(img);
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
@@ -86,6 +82,49 @@ export async function cropImageFile(file: File, crop: CropRect, maxWidth: number
     };
     img.src = objectUrl;
   });
+}
+
+/** Phones sometimes never call back when they run short of memory for a canvas, so this stops waiting. */
+const ENCODE_TIMEOUT_MS = 15_000;
+
+/**
+ * Prepares a profile picture or banner for upload: the chosen part of the image, as a JPEG
+ * no wider than `maxWidth`. A GIF stays a GIF and keeps its size, so that it keeps its animation.
+ * Pass `decoded` when the image is already loaded: a phone photo takes a lot of memory to decode again.
+ */
+export async function cropImageFile(file: File, crop: CropRect, maxWidth: number, decoded?: HTMLImageElement): Promise<Blob> {
+  if (isGifFile(file)) {
+    const cropped = await cropGif(new Uint8Array(await file.arrayBuffer()), crop);
+    if (cropped.length > PROFILE_IMAGE_MAX_BYTES) {
+      throw new Error("This GIF is still over 5 MB after cropping. Zoom in further or choose a smaller one.");
+    }
+    return new Blob([cropped], { type: "image/gif" });
+  }
+  const img = decoded?.complete && decoded.naturalWidth > 0 ? decoded : await loadImage(file);
+  const canvas = document.createElement("canvas");
+  // Never enlarge a small image.
+  canvas.width = Math.min(maxWidth, crop.width);
+  canvas.height = Math.max(1, Math.round((crop.height * canvas.width) / crop.width));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("This browser couldn't prepare the image. Try a smaller one.");
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+  try {
+    return await new Promise<Blob>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("That image took too long to prepare. Try a smaller one.")), ENCODE_TIMEOUT_MS);
+      canvas.toBlob(
+        (blob) => {
+          clearTimeout(timer);
+          if (blob) resolve(blob);
+          else reject(new Error("That image couldn't be processed."));
+        },
+        "image/jpeg",
+        0.85,
+      );
+    });
+  } finally {
+    // Mobile Safari holds a canvas's memory until it's shrunk, and only has so much for all of them.
+    canvas.width = canvas.height = 0;
+  }
 }
 
 /** Downscale an uploaded image to a square JPEG data URL suitable for a cover. */
