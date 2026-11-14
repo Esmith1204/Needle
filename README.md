@@ -4,6 +4,8 @@ A social music rating app: rate albums on a 10-point decimal scale, or rank them
 
 Built with Vite, React, TypeScript, Tailwind CSS v4, React Router, GSAP, and Supabase (Auth, Postgres, Realtime).
 
+Documentation and ideation contributions by: Derick Anunciacion, Miles Urquidi, and Kiefer Kokhavi
+
 ## Run it
 
 ```bash
