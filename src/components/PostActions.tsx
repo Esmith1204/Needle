@@ -72,39 +72,47 @@ export function PostActions({ post, onComment, className = "" }: PostActionsProp
 
   return (
     <div className={className}>
-      <footer className="-ml-2 flex max-w-sm items-center justify-between text-muted">
-        <ActionButton label="Comments" count={post.commentCount} onClick={onComment}>
-          <CommentIcon size={16} />
-        </ActionButton>
-        <ActionButton
-          label={repost.value ? "Undo repost" : "Repost"}
-          count={post.repostCount + repost.countChange}
-          active={repost.value}
-          flourish
-          onClick={() => {
-            setError(null);
-            void repost.toggle();
-          }}
+      <footer className="-ml-2.5 flex items-center gap-2 text-muted">
+        <div className="flex max-w-xs flex-1 items-center justify-between">
+          <ActionButton label="Comments" count={post.commentCount} onClick={onComment}>
+            <CommentIcon size={21} />
+          </ActionButton>
+          <ActionButton
+            label={repost.value ? "Undo repost" : "Repost"}
+            count={post.repostCount + repost.countChange}
+            active={repost.value}
+            flourish
+            onClick={() => {
+              setError(null);
+              void repost.toggle();
+            }}
+          >
+            <RepostIcon size={21} />
+          </ActionButton>
+          <ActionButton
+            label={like.value ? "Unlike" : "Like"}
+            count={post.likeCount + like.countChange}
+            active={like.value}
+            flourish
+            onClick={() => {
+              setError(null);
+              void like.toggle();
+            }}
+          >
+            <HeartIcon size={21} filled={like.value} />
+          </ActionButton>
+        </div>
+        {/* Labeled and outlined so it reads as a button at a glance, not just another icon. */}
+        <button
+          type="button"
+          onClick={onShare}
+          className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-4 text-sm font-bold text-accent transition-colors hover:border-accent hover:bg-accent/20"
         >
-          <RepostIcon size={16} />
-        </ActionButton>
-        <ActionButton
-          label={like.value ? "Unlike" : "Like"}
-          count={post.likeCount + like.countChange}
-          active={like.value}
-          flourish
-          onClick={() => {
-            setError(null);
-            void like.toggle();
-          }}
-        >
-          <HeartIcon size={16} filled={like.value} />
-        </ActionButton>
-        <ActionButton label="Share" onClick={onShare}>
-          <ShareIcon size={16} />
-        </ActionButton>
+          <ShareIcon size={18} strokeWidth={2} />
+          {notice ?? "Share"}
+        </button>
       </footer>
-      <p role="status" className="text-xs text-muted empty:hidden">
+      <p role="status" className="sr-only">
         {notice}
       </p>
       {error && (
@@ -139,7 +147,7 @@ function ActionButton({ label, count, active, flourish, onClick, children }: Act
         if (flourish && !active) pop(icon.current);
         onClick();
       }}
-      className={`flex items-center gap-1.5 rounded-full p-2 text-xs transition-colors hover:bg-accent/10 hover:text-accent ${
+      className={`flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors hover:bg-accent/10 hover:text-accent ${
         active ? "text-accent" : ""
       }`}
     >
@@ -147,7 +155,7 @@ function ActionButton({ label, count, active, flourish, onClick, children }: Act
         {children}
       </span>
       {/* Reserved even at zero, so the buttons don't shift when a count appears. */}
-      {count !== undefined && <span className="min-w-3 tabular-nums">{count > 0 ? count.toLocaleString() : ""}</span>}
+      {count !== undefined && <span className="min-w-4 text-left tabular-nums">{count > 0 ? count.toLocaleString() : ""}</span>}
     </button>
   );
 }

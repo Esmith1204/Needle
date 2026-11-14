@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { AlbumCover } from "../components/AlbumCover";
 import { AlbumSearchField } from "../components/AlbumSearchField";
 import { ComparisonRater } from "../components/ComparisonRater";
+import { InfoTip } from "../components/InfoTip";
 import { Field } from "../components/FormField";
 import { UploadIcon } from "../components/Icons";
 import { PageHeader } from "../components/PageHeader";
@@ -177,17 +178,39 @@ export function CreateRatingPage() {
         >
           {(describedBy) => (
             <>
-              <div role="radiogroup" aria-label="How to rate" className="mb-2 grid grid-cols-2 rounded-full border border-line p-0.5">
-                <ModeButton id="rating-mode-manual" active={method === "manual"} onClick={() => setMethod("manual")}>
-                  Score it
-                </ModeButton>
-                <ModeButton id="rating-mode-compare" active={method === "comparison"} onClick={() => setMethod("comparison")}>
-                  Compare
-                  {!comparisonUnlocked && !past.loading && (
-                    <span className="ml-1 font-normal opacity-70">· {COMPARISON_UNLOCK}+ ratings</span>
-                  )}
-                </ModeButton>
+              <div className="flex items-center gap-1">
+                <div
+                  role="radiogroup"
+                  aria-label="How to rate"
+                  aria-describedby="rating-mode-help"
+                  className="grid flex-1 grid-cols-2 rounded-full border border-line p-0.5"
+                >
+                  <ModeButton id="rating-mode-manual" active={method === "manual"} onClick={() => setMethod("manual")}>
+                    Score it
+                  </ModeButton>
+                  <ModeButton id="rating-mode-compare" active={method === "comparison"} onClick={() => setMethod("comparison")}>
+                    Compare
+                    {!comparisonUnlocked && !past.loading && (
+                      <span className="ml-1 font-normal opacity-70">· {COMPARISON_UNLOCK}+ ratings</span>
+                    )}
+                  </ModeButton>
+                </div>
+                <InfoTip label="What's the difference between Score it and Compare?">
+                  <span className="block">
+                    <span className="font-bold">Score it:</span> type your own score from 0 to 10.
+                  </span>
+                  <span className="mt-1.5 block">
+                    <span className="font-bold">Compare:</span> not sure what number to give? Pick how you felt, then
+                    answer a few &ldquo;which did you like more?&rdquo; questions against albums you&rsquo;ve already
+                    rated. Needle works out the score from your answers.
+                  </span>
+                </InfoTip>
               </div>
+              <p id="rating-mode-help" className="mb-2 mt-1.5 text-xs text-muted">
+                {method === "manual"
+                  ? "Give it a score from 0 to 10."
+                  : "Answer a few quick “which did you like more?” questions and Needle picks the score."}
+              </p>
 
               {method === "manual" ? (
                 <ScoreInput

@@ -20,7 +20,8 @@ export function Layout() {
     <div className="mx-auto flex min-h-dvh max-w-[75rem] justify-center">
       <Sidebar />
 
-      <main className="min-w-0 flex-1 bg-paper/50 pb-16 sm:max-w-[37.5rem] sm:border-x sm:border-line sm:pb-0">
+      {/* Bottom padding on phones clears the bottom bar and the floating Rate button. */}
+      <main className="min-w-0 flex-1 pb-36 sm:max-w-[40rem] sm:pb-0">
         <header className="relative z-20 flex h-12 items-center justify-between border-b border-line px-4 sm:hidden">
           <Link to="/" aria-label="Needle home">
             <Wordmark className="text-xl" />
@@ -42,6 +43,7 @@ export function Layout() {
         </aside>
       )}
 
+      <RateFab />
       <BottomNav />
       <ScrollRestoration />
     </div>
@@ -95,8 +97,14 @@ function Sidebar() {
         <SidebarLink to={`/u/${user.handle}`} label="Profile" Icon={UserIcon} />
       </nav>
 
-      <Link to="/rate" aria-label="Rate an album" className="btn btn-primary mt-4 size-11 p-0 xl:h-10 xl:w-full">
-        <PlusIcon size={18} strokeWidth={2.4} />
+      {/* The app's main action: bigger and brighter than anything else in the sidebar. */}
+      <Link
+        to="/rate"
+        aria-label="Rate an album"
+        title="Rate an album"
+        className="btn btn-primary shadow-glow mt-5 size-14 p-0 xl:h-14 xl:w-full xl:gap-2 xl:text-base"
+      >
+        <PlusIcon size={24} strokeWidth={2.6} />
         <span className="hidden xl:inline">Rate an album</span>
       </Link>
 
@@ -147,11 +155,24 @@ function BottomNav() {
     >
       <BottomLink to="/" end label="Home" Icon={HomeIcon} />
       <BottomLink to="/discover" label="Discover" Icon={CompassIcon} />
-      <Link to="/rate" aria-label="Rate an album" className="btn btn-primary size-10 p-0">
-        <PlusIcon size={18} strokeWidth={2.4} />
-      </Link>
       <BottomLink to={`/u/${user.handle}`} label="Profile" Icon={UserIcon} />
     </nav>
+  );
+}
+
+/** Phones only: a floating Rate button that sits above the bottom bar on every page but the composer. */
+function RateFab() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/rate")) return null;
+  return (
+    <Link
+      to="/rate"
+      aria-label="Rate an album"
+      className="btn btn-primary shadow-glow fixed bottom-[4.5rem] right-4 z-30 h-14 gap-2 px-5 text-base sm:hidden"
+    >
+      <PlusIcon size={22} strokeWidth={2.6} />
+      Rate
+    </Link>
   );
 }
 

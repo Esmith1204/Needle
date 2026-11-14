@@ -4,7 +4,7 @@ import { AlbumCover, CoverDescription } from "../components/AlbumCover";
 import { Avatar } from "../components/Avatar";
 import { EditProfileDialog } from "../components/EditProfileDialog";
 import { CheckIcon, GridIcon, ListIcon, PlusIcon } from "../components/Icons";
-import { PostCard } from "../components/PostCard";
+import { POST_LIST_CLASS, PostCard } from "../components/PostCard";
 import { ProfileImage } from "../components/ProfileImage";
 import { ProfileLists } from "../components/ProfileLists";
 import { RatingHistogram } from "../components/RatingHistogram";
@@ -96,7 +96,7 @@ function ProfilePage({ handle }: { handle: string }) {
         {tab === "ratings" && <RatingsTab posts={posts} profile={profile} isMe={isMe} onDeleted={reload} />}
         {tab === "reviews" &&
           (reviews.length > 0 ? (
-            <ol>
+            <ol className={POST_LIST_CLASS}>
               {reviews.map((post) => (
                 <li key={post.id}>
                   <PostCard post={post} onDeleted={reload} />
@@ -165,7 +165,7 @@ function ActivityList({ items, error, onDeleted, empty }: ActivityListProps) {
   }
   if (items.length === 0) return <p className="px-6 py-12 text-center text-sm text-muted">{empty}</p>;
   return (
-    <ol>
+    <ol className={POST_LIST_CLASS}>
       {items.map(({ post, repostedBy }) => (
         <li key={post.id}>
           <PostCard post={post} repostedBy={repostedBy} onDeleted={onDeleted} />
@@ -259,7 +259,7 @@ function RatingsTab({ posts, profile, isMe, onDeleted }: RatingsTabProps) {
             ))}
           </ul>
         ) : (
-          <ol className="border-t border-line">
+          <ol className={`border-t border-line ${POST_LIST_CLASS}`}>
             {posts.map((post) => (
               <li key={post.id}>
                 <PostCard post={post} onDeleted={onDeleted} />

@@ -38,85 +38,127 @@ export function PostCard({ post, repostedBy, onDeleted }: PostCardProps) {
   };
 
   return (
-    <article onClick={onCardClick} className="cursor-pointer border-b border-line px-4 py-3 transition-colors hover:bg-tint/[0.02]">
+    <article
+      onClick={onCardClick}
+      className="cursor-pointer overflow-hidden rounded-2xl border border-line bg-card transition-[border-color,box-shadow] hover:border-rule hover:shadow-xl hover:shadow-black/20"
+    >
       {repostedBy && (
-        <p className="mb-1 flex items-center gap-1.5 pl-[2.375rem] text-xs font-semibold text-muted">
+        <p className="flex items-center gap-1.5 px-3.5 pt-2.5 text-xs font-semibold text-muted">
           <RepostIcon size={13} className="shrink-0" />
           <Link to={`/u/${repostedBy.handle}`} className="truncate hover:underline">
             {repostedBy.id === viewer.id ? "You" : repostedBy.displayName} reposted
           </Link>
         </p>
       )}
-      <div className="flex gap-3">
-        <Link to={profileHref} aria-label={`${author.displayName}'s profile`} className="shrink-0">
-          <Avatar profile={author} size={40} />
+
+      <header className="flex items-center gap-2 px-2 pt-2">
+        {/* One big target for the author's profile: avatar, name, and handle together. */}
+        <Link
+          to={profileHref}
+          aria-label={`${author.displayName} (@${author.handle}), view profile`}
+          className="group flex min-w-0 items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-tint/5"
+        >
+          <Avatar
+            profile={author}
+            size={40}
+            className="ring-2 ring-transparent transition-shadow group-hover:ring-accent"
+          />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[0.9375rem] font-bold group-hover:underline">{author.displayName}</span>
+            <span className="block truncate text-sm text-muted">@{author.handle}</span>
+          </span>
         </Link>
+        <Link to={postHref} className="ml-auto shrink-0 pr-1.5 text-sm text-muted hover:underline">
+          <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+        </Link>
+        {viewer.id === author.id && (
+          <PostMenu
+            postId={post.id}
+            onEdit={() => navigate(postHref, { state: { edit: true } })}
+            onDeleted={onDeleted}
+          />
+        )}
+      </header>
 
-        <div className="min-w-0 flex-1">
-          <header className="flex items-center gap-1">
-            <p className="min-w-0 flex-1 truncate text-sm">
-              <Link to={profileHref} className="font-bold hover:underline">
-                {author.displayName}
-              </Link>{" "}
-              <span className="text-muted">
-                @{author.handle} ·{" "}
-                <Link to={postHref} className="hover:underline">
-                  <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
-                </Link>
-              </span>
-            </p>
-            {viewer.id === author.id && (
-              <PostMenu
-                postId={post.id}
-                onEdit={() => navigate(postHref, { state: { edit: true } })}
-                onDeleted={onDeleted}
-              />
+      {/* The album is the hero: big cover art over a blurred wash of its own colors. */}
+      <div className="relative mx-2.5 mt-2 overflow-hidden rounded-xl">
+        <CoverBackdrop src={album.coverUrl} />
+        <div className="relative flex items-center gap-3 p-2">
+          <AlbumCover
+            src={album.coverUrl}
+            title={album.title}
+            className="w-20 shrink-0 rounded-lg shadow-md shadow-black/40 sm:w-24"
+          />
+          <div className="flex min-w-0 flex-1 flex-col self-stretch">
+            <h3 className="line-clamp-2 text-base font-bold leading-tight sm:text-lg">{album.title}</h3>
+            {album.artist && (
+              <p className="truncate text-sm font-medium text-ink/80">
+                {album.artist}
+                {album.year ? ` · ${album.year}` : ""}
+              </p>
             )}
-          </header>
-
-          <div className="mt-1.5 flex items-center gap-3 rounded-xl border border-line bg-tint/[0.03] p-2">
-            <AlbumCover src={album.coverUrl} title={album.title} className="size-14 shrink-0 rounded-lg" />
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-[0.9375rem] font-bold leading-snug">{album.title}</h3>
-              {album.artist && (
-                <p className="truncate text-[0.8125rem] text-muted">
-                  {album.artist}
-                  {album.year ? ` · ${album.year}` : ""}
-                </p>
-              )}
-              {post.method === "comparison" && <p className="truncate text-xs text-muted">Ranked by comparison</p>}
-              <CoverDescription album={album} />
-              {canPreview(album) && (
+            {post.method === "comparison" && (
+              <p className="mt-1 w-fit rounded-full bg-tint/10 px-2 py-0.5 text-xs font-semibold text-ink/80">
+                Ranked by comparison
+              </p>
+            )}
+            <CoverDescription album={album} />
+            <div className="mt-auto flex items-end justify-between gap-2 pt-1.5">
+              {canPreview(album) ? (
                 <button
                   type="button"
                   aria-expanded={previewing}
                   aria-label={`${previewing ? "Hide preview of" : "Preview"} ${album.title}`}
                   onClick={() => setPreviewing((open) => !open)}
-                  className="mt-0.5 inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full bg-tint/10 px-3 text-xs font-bold transition-colors hover:bg-tint/20"
                 >
                   <PlayIcon size={10} />
-                  {previewing ? "Hide preview" : "Preview"}
+                  {previewing ? "Hide" : "Preview"}
                 </button>
+              ) : (
+                <span />
               )}
+              <ScoreBadge rating={post.rating} size="lg" />
             </div>
-            <ScoreBadge rating={post.rating} />
           </div>
-
-          {previewing && (
-            <div data-preview className="mt-2 cursor-default">
-              <AlbumPreview album={album} />
-            </div>
-          )}
-
-          {post.review && <p className="mt-2 break-words text-[0.9375rem] leading-snug">{post.review}</p>}
-
-          <PostActions
-            post={post}
-            onComment={() => navigate(postHref, { state: { comment: true } })}
-            className="mt-1"
-          />
         </div>
       </div>
+
+      {previewing && (
+        <div data-preview className="mx-2.5 mt-2 cursor-default">
+          <AlbumPreview album={album} />
+        </div>
+      )}
+
+      {post.review && <p className="mt-2 break-words px-3.5 text-[0.9375rem] leading-snug">{post.review}</p>}
+
+      <PostActions
+        post={post}
+        onComment={() => navigate(postHref, { state: { comment: true } })}
+        className="px-3.5 pb-1 pt-0.5"
+      />
     </article>
   );
 }
+
+/** A blurred, enlarged copy of the cover behind the album block, dimmed so text stays readable. */
+function CoverBackdrop({ src }: { src: string | null | undefined }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div aria-hidden="true" className="absolute inset-0 bg-field">
+      {src && !failed && (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full scale-150 object-cover opacity-70 blur-2xl saturate-150"
+        />
+      )}
+      <div className="absolute inset-0 bg-linear-to-t from-card/85 via-card/55 to-card/35" />
+    </div>
+  );
+}
+
+/** Spacing for a column of post cards, shared by the timeline and profile tabs. */
+export const POST_LIST_CLASS = "flex flex-col gap-2 p-2 sm:gap-2.5 sm:p-3";

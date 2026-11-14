@@ -191,3 +191,17 @@ export const ListIcon = (p: IconProps) => (
     <path d="M4 6h.01M4 12h.01M4 18h.01" strokeWidth={2.4} />
   </Icon>
 );
+
+export const InfoIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.5" />
+    <path d="M12 7.6v.01" strokeWidth={2.4} />
+  </Icon>
+);
+
+export const CloseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Icon>
+);

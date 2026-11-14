@@ -3,8 +3,11 @@
 /* Default dark theme built around two brand colors: violet #573a9b and blue #2755a1.
    Light mode and the other color options override these below. */
 @theme {
-  --font-sans: "Nunito", ui-rounded, ui-sans-serif, system-ui, sans-serif;
-  --font-brand: "Stack Sans Notch", "Nunito", ui-sans-serif, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Headings, album titles, and scores. */
+  --font-display: "Bricolage Grotesque", "DM Sans", ui-sans-serif, sans-serif;
+  /* The "Needle" wordmark only. */
+  --font-brand: "Stack Sans Notch", "Bricolage Grotesque", ui-sans-serif, sans-serif;
 
   --color-paper: #0c0d16;
   --color-card: #151725;
@@ -35,9 +38,24 @@
   background-image: linear-gradient(90deg, var(--color-accent), var(--color-accent-blue));
 }
 
+/* A soft colored halo for the one or two things on screen that should draw the eye first. */
+@utility shadow-glow {
+  box-shadow:
+    0 10px 30px -8px color-mix(in oklab, var(--color-violet) 75%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--color-accent) 30%, transparent);
+}
+
 @layer base {
   html {
     color-scheme: dark;
+    /* A 17px base (from 16px) for readability. Rem-based layout scales with it. */
+    font-size: 106.25%;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
   body {
     @apply bg-paper font-sans text-ink antialiased;
@@ -130,15 +148,16 @@
     filter: grayscale(1);
   }
 
-  /* Percentages keep whatever base size the browser is set to. Layout scales with it too. */
+  /* Percentages keep whatever base size the browser is set to. Layout scales with it too.
+     Each step sits one notch above the old scale, matching the larger default. */
   :root[data-font-size="small"] {
-    font-size: 87.5%;
+    font-size: 93.75%;
   }
   :root[data-font-size="large"] {
-    font-size: 112.5%;
+    font-size: 118.75%;
   }
   :root[data-font-size="xlarge"] {
-    font-size: 125%;
+    font-size: 131.25%;
   }
 
   /* GSAP checks the same setting in reducedMotion(); this covers CSS transitions. */
